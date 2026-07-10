@@ -1,0 +1,3278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- viewport-fit=cover lets the app draw edge-to-edge on iPhones with a notch -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DoseLog</title>
+  <meta name="description" content="Track doses and timing easily on any device. Private — all data stays on your phone.">
+  <meta property="og:title" content="DoseLog">
+
+  <!-- Tell the browser this is a dark app so built-in controls render dark too -->
+  <meta name="color-scheme" content="dark">
+  <!-- Colour of the browser/status-bar chrome; must match --bg below -->
+  <meta name="theme-color" content="#0f1216">
+
+  <!-- ===== PWA wiring ===== -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+
+  <!-- iOS-specific: launch fullscreen from the home screen, dark status bar -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DoseLog">
+  <link rel="apple-touch-icon" href="./apple-touch-icon-180.png">
+
+  <style>
+    /* =====================================================================
+       THEME — core colours, shape and spacing.
+       ===================================================================== */
+    :root {
+      /* Surfaces (darkest → lightest) */
+      --bg: #0f1216;            /* page background — keep in sync with theme-color meta + manifest */
+      --surface: #171b22;       /* cards, log panel */
+      --surface-2: #1d222b;     /* slightly raised areas inside cards */
+      --surface-3: #232a35;     /* menus, modals, snackbar */
+
+      /* Lines */
+      --border: rgba(255,255,255,0.07);
+      --border-strong: rgba(255,255,255,0.16);
+
+      /* Text */
+      --text: #e9ecf2;
+      --muted: #a6aebd;
+      --faint: #788090;
+
+      /* Accent — calm teal. Used sparingly: primary actions + focus rings. */
+      --accent: #56c1ab;
+      --accent-strong: #74dcc6;
+      --accent-soft: rgba(86,193,171,0.13);
+      --accent-border: rgba(86,193,171,0.35);
+      --accent-ring: rgba(86,193,171,0.30);
+      --on-accent: #0c1f1a;   /* text on top of accent-filled buttons */
+
+      /* Status colours */
+      --ok: #5cc98f;
+      --ok-soft: rgba(92,201,143,0.14);
+      --ok-border: rgba(92,201,143,0.35);
+      --danger: #ef6e66;
+      --danger-soft: rgba(239,110,102,0.12);
+      --danger-border: rgba(239,110,102,0.38);
+
+      /* Shape & depth */
+      --radius: 18px;
+      --radius-sm: 12px;
+      --shadow: 0 10px 28px rgba(0,0,0,0.35);
+      --shadow-soft: 0 2px 10px rgba(0,0,0,0.22);
+
+      /* Motion — one place to tune all animation speed */
+      --ease: cubic-bezier(0.32, 0.72, 0.25, 1);
+      --t-fast: 0.15s;
+      --t-med: 0.28s;
+
+      /* iPhone safe areas (notch / home indicator) */
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+      /* Minimum comfortable touch height */
+      --control-h: 46px;
+
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    html { -webkit-text-size-adjust: 100%; }
+    /* 16px inputs prevent iOS Safari from zooming in when a field is focused */
+    input, select, textarea, .edit-input { font-size: 16px; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+                   "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      /* Subtle glows keep the dark background from feeling flat. */
+      background:
+        radial-gradient(900px 520px at 15% -10%, color-mix(in srgb, var(--accent) 8%, transparent) 0, transparent 60%),
+        radial-gradient(700px 420px at 90% -5%, rgba(120,140,200,0.05) 0, transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      /* Top/bottom padding respects the iPhone notch & home indicator */
+      padding: calc(28px + var(--safe-top)) 20px calc(96px + var(--safe-bottom));
+      position: relative;
+    }
+
+    /* ===== Header ===== */
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+
+    /* Icon tile matching the home-screen icon. */
+    .app-emblem {
+      flex-shrink: 0;
+      width: 54px; height: 54px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #232b36 0%, #11151b 100%);
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45),
+                  0 0 26px color-mix(in srgb, var(--accent) 18%, transparent);
+      display: grid; place-items: center;
+    }
+    .app-emblem svg { width: 42px; height: 42px; display: block; }
+
+    header h1 {
+      font-size: clamp(24px, 3vw, 30px);
+      margin: 0 0 3px;
+      letter-spacing: -0.02em;
+      font-weight: 750;
+      /* Gentle top-to-bottom fade so the title feels less flat */
+      background: linear-gradient(180deg, #f7f9fd 25%, #b6c0d2 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+    header p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    @media (max-width: 720px) {
+      header { gap: 12px; }
+      .app-emblem { width: 48px; height: 48px; border-radius: 12px; }
+      .app-emblem svg { width: 37px; height: 37px; }
+    }
+
+    /* ===== Toolbar ===== */
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .toolbar-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Shared button styling. */
+    .toolbar button, .btn, .btn-sm, .add-btn, .controls button {
+      font-family: inherit;
+      font-weight: 600;
+      border-radius: 999px; /* pill shape — friendlier, more app-like */
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      cursor: pointer;
+      transition: background var(--t-fast) var(--ease),
+                  border-color var(--t-fast) var(--ease),
+                  transform var(--t-fast) var(--ease);
+    }
+    .toolbar button { padding: 0 16px; min-height: var(--control-h); font-size: 14px; }
+    .toolbar button:hover, .btn:hover, .btn-sm:hover, .controls button:hover {
+      background: var(--surface-3);
+    }
+    .toolbar button:active, .btn:active, .btn-sm:active, .add-btn:active,
+    .controls button:active {
+      transform: scale(0.97);
+    }
+
+    /* Primary action. */
+    #add-med {
+      background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 55%);
+      border-color: transparent;
+      color: var(--on-accent);
+      font-weight: 700;
+      box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+    #add-med:hover {
+      background: var(--accent-strong);
+      box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 40%, transparent);
+    }
+
+    /* ===== Page footer (rarely-used actions) ===== */
+    .page-footer {
+      margin-top: 28px;
+      display: flex; justify-content: center; align-items: center; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .footer-link {
+      background: transparent; border: none; padding: 10px 6px;
+      color: var(--faint); font-family: inherit; font-size: 13px; font-weight: 500;
+      text-decoration: underline; text-underline-offset: 3px;
+      cursor: pointer; border-radius: 8px;
+    }
+    .footer-link:hover { color: var(--muted); }
+    .footer-link-danger:hover { color: var(--danger); }
+    .footer-sep { color: var(--faint); font-size: 13px; }
+
+    /* Visible keyboard-focus ring everywhere */
+    button:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ===== Drug card grid ===== */
+    /* align-items:start keeps collapsed cards at their natural height instead
+       of stretching to match an expanded neighbour */
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+
+    .grid-empty {
+      grid-column: 1 / -1;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      padding: 36px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .grid-empty strong { color: var(--text); }
+
+    /* ===== Card ===== */
+    .card {
+      background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden; /* keeps the colour strip inside the rounded corners */
+    }
+
+    /* Per-drug colour, shown as a slim accent line along the top */
+    .color-strip {
+      position: absolute; inset: 0 0 auto 0; height: 3px;
+      opacity: 0.9;
+    }
+
+    .card-header {
+      padding: 16px 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer; /* the whole header toggles expand/collapse */
+    }
+
+    .card-top-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+
+    /* Drug title. Avoid "name" so iOS does not offer contact autofill. */
+    input.drug-title {
+      font-size: 17px; font-weight: 700; letter-spacing: -0.01em;
+      padding: 4px 6px; margin: 0 0 0 -6px; flex: 0 1 auto; min-width: 0;
+      background: transparent; border: none; color: var(--text);
+      font-family: inherit; border-radius: 8px;
+    }
+    /* Hidden text mirror used to size the title input. */
+    .title-sizer {
+      position: absolute; left: -9999px; top: 0; visibility: hidden;
+      white-space: pre;
+      font-size: 17px; font-weight: 700; letter-spacing: -0.01em;
+    }
+    /* While read-only, taps fall through to the header (which expands the card) */
+    input.drug-title:not(.editing) { pointer-events: none; }
+    input.drug-title:focus {
+      outline: none;
+      background: var(--surface-3);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    /* Pencil next to the title; doubled class beats base .icon-btn sizes. */
+    .icon-btn.title-edit-btn {
+      width: 32px; height: 32px; min-width: 32px; min-height: 32px;
+      margin: -4px 0 -4px -2px; padding: 0;
+      color: var(--faint);
+    }
+    .icon-btn.title-edit-btn:hover { color: var(--text); }
+    /* Preset info button. Opens a dialog before any external page. */
+    .icon-btn.info-btn {
+      width: 32px; height: 32px; min-width: 32px; min-height: 32px;
+      margin: -4px 0 -4px -2px; padding: 0;
+      color: var(--faint);
+    }
+    .icon-btn.info-btn:hover { color: var(--text); }
+    input.drug-title.invalid { color: var(--danger); }
+
+    /* Scrollable preset chips shown while renaming. */
+    .preset-row {
+      display: none;
+      gap: 7px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; /* the row hints at more content by clipping a chip */
+      margin: 8px 0 2px;
+    }
+    .preset-row.show { display: flex; }
+    .preset-row::-webkit-scrollbar { display: none; }
+    .preset-chip {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .preset-chip:hover { background: var(--surface-3); }
+    .preset-chip .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+    .name-error { color: var(--danger); font-size: 12px; margin: 0; display: none; }
+
+    .btn-sm { padding: 8px 11px; font-size: 12.5px; min-height: 36px; }
+
+    .repeat-btn {
+      color: var(--accent-strong);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+      display: inline-flex; align-items: center; gap: 6px;
+      white-space: nowrap;
+    }
+    .repeat-btn svg { flex-shrink: 0; }
+    .repeat-btn:hover { background: rgba(86,193,171,0.22); }
+
+    /* Chevron in the top-right corner. */
+    .chev-btn {
+      width: 36px; height: 36px; flex-shrink: 0;
+      margin: -4px -10px -4px auto;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; padding: 0;
+      color: var(--muted); cursor: pointer; border-radius: 999px;
+      -webkit-tap-highlight-color: transparent;
+      transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+    }
+    .chev-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .chev-btn svg { transition: transform var(--t-med) var(--ease); }
+    .card:not(.collapsed) .chev-btn svg { transform: rotate(180deg); }
+
+    /* Card footer keeps Remove away from the Add button. */
+    .card-foot {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; min-height: 28px; margin-top: 6px;
+    }
+    .link-btn {
+      background: none; border: none; padding: 4px 0; cursor: pointer;
+      color: var(--faint); font-family: inherit; font-size: 13px; font-weight: 500;
+      text-decoration: underline; text-underline-offset: 3px;
+      transition: color var(--t-fast) var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .link-btn:hover { color: var(--muted); }
+    /* Tiny "Change date" option under a time field (log edits, Taken earlier) */
+    .date-link {
+      display: block; font-size: 12.5px; padding: 2px 0;
+      white-space: nowrap; margin: 2px auto 0;
+    }
+    .date-link[hidden] { display: none; }
+    .edit-date { margin-top: 6px; }
+    .earlier-box { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+    .earlier-box .date-link { margin: 0 0 0 2px; }
+    input.earlier-date { width: auto; min-height: 36px; padding: 6px 10px; }
+    .earlier-edit { display: flex; align-items: center; gap: 8px; }
+    .earlier-edit .earlier-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    input.earlier-time { width: auto; min-height: 36px; padding: 6px 10px; }
+    .earlier-cancel {
+      background: none; border: none; cursor: pointer; padding: 4px 8px;
+      color: var(--muted); line-height: 1; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .earlier-cancel:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+    /* Key numbers: last dose is primary; running total is quieter. */
+    .meta {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      pointer-events: none; margin-top: 6px; min-height: 18px;
+    }
+    .meta-block { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .meta-block:last-child { text-align: right; }
+    /* Repeat button opts back into pointer events inside the tappable header. */
+    .meta-right { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }
+    .meta .repeat-btn { pointer-events: auto; }
+    .meta-label {
+      font-size: 11px; font-weight: 600; color: var(--faint);
+      text-transform: uppercase; letter-spacing: 0.07em;
+    }
+    .meta .last {
+      font-size: 26px; font-weight: 800; letter-spacing: -0.02em;
+      color: var(--text); font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+      line-height: 1.15;
+    }
+    .meta .total {
+      font-size: 14px; font-weight: 550; color: var(--muted);
+      font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+    }
+
+    /* ===== Smooth collapse/expand ===== */
+    .card-collapse {
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows var(--t-med) var(--ease);
+    }
+    .card.collapsed .card-collapse { grid-template-rows: 0fr; }
+    .card-body {
+      overflow: hidden;
+      min-height: 0;
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 0 16px;
+      opacity: 1;
+      transition: opacity var(--t-med) var(--ease);
+    }
+    .card:not(.collapsed) .card-body { padding-bottom: 16px; }
+    .card.collapsed .card-body { opacity: 0; }
+
+    /* ===== Inputs & selects =====
+       (.drug-title is excluded — it's an editable heading, not a form box) */
+    input[type="text"]:not(.drug-title), input[type="time"], input[type="date"], select {
+      width: 100%;
+      min-height: var(--control-h);
+      padding: 10px 13px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+      transition: border-color var(--t-fast) var(--ease),
+                  background var(--t-fast) var(--ease),
+                  box-shadow var(--t-fast) var(--ease);
+    }
+    input[type="text"]::placeholder { color: var(--faint); }
+    input[type="text"]:not(.drug-title):focus, input[type="time"]:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+      background: var(--surface-3);
+    }
+
+    /* Custom chevron on selects (the data: image is inlined — no network) */
+    select {
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23a6aebd' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    /* Amount / unit / Add row */
+    .dose-grid { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; }
+
+    button.add-btn {
+      min-height: var(--control-h);
+      padding: 0 18px;
+      font-size: 15px;
+      font-weight: 700;
+      background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 55%);
+      border-color: transparent;
+      color: var(--on-accent);
+      box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    button.add-btn:hover { background: var(--accent-strong); }
+
+    /* ===== Colour picker =====
+       Small visible dot with a larger tap target. */
+    .color-picker { display: flex; align-items: center; flex-shrink: 0; }
+    .color-dot-btn {
+      width: 38px; height: 38px;
+      margin: -8px -14px -8px -12px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; padding: 0;
+      border-radius: 999px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .color-dot-btn .swatch, .color-option .swatch {
+      width: 14px; height: 14px; border-radius: 999px;
+      background: var(--swatch, #56c1ab);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.25) inset;
+      flex-shrink: 0;
+      transition: transform var(--t-fast) var(--ease);
+    }
+    .color-dot-btn:hover .swatch { transform: scale(1.25); }
+    .color-dot-btn:focus-visible { outline: none; }
+    .color-dot-btn:focus-visible .swatch { box-shadow: 0 0 0 3px var(--accent-ring); }
+    .color-menu {
+      /* Fixed-position menu avoids clipping inside rounded cards. */
+      position: fixed;
+      max-height: 60vh; overflow-y: auto;
+      background: var(--surface-3);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px; padding: 8px;
+      box-shadow: var(--shadow);
+      display: none; z-index: 1000;
+      animation: pop-in var(--t-fast) var(--ease);
+    }
+    .color-picker.open .color-menu { display: grid; grid-template-columns: repeat(5, 44px); gap: 4px; }
+    .color-option {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px;
+      border-radius: 10px; border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .color-option .swatch { width: 18px; height: 18px; }
+    .color-option:hover { background: rgba(255,255,255,0.07); }
+    /* The current colour gets a clear teal ring, not just a faint border */
+    .color-option[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+    /* ===== Log panel ===== */
+    .log {
+      margin-top: 24px;
+      background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-soft);
+      overflow: hidden;
+    }
+    /* Title on one line, main actions below. */
+    .log-header {
+      display: flex; flex-direction: column; align-items: flex-start;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .log-title-row { display: flex; align-items: center; gap: 4px; }
+    /* Clear is intentionally quiet beside the title. */
+    .clear-log-btn {
+      border: none; background: none; cursor: pointer;
+      color: var(--faint); font-family: inherit;
+      font-size: 11.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      padding: 4px 9px; margin: -2px 0; border-radius: 999px;
+      transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+    }
+    .clear-log-btn:hover { color: var(--danger); background: var(--danger-soft); }
+
+    /* Friendly accent actions. */
+    #share-log, #share-send, #fresh-clear, #wiki-open, #combo-show {
+      color: var(--accent-strong);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+    #share-log:hover, #share-send:hover, #fresh-clear:hover, #wiki-open:hover, #combo-show:hover { background: rgba(86,193,171,0.22); }
+
+    .log-header h3 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+    .controls { display: flex; gap: 8px; }
+    .controls button { padding: 8px 12px; font-size: 12.5px; min-height: 36px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: auto; }
+    thead th {
+      text-align: left; padding: 10px 14px;
+      color: var(--faint); font-weight: 600; font-size: 12px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    tbody td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    .empty-row td { text-align: center; color: var(--muted); padding: 28px 18px; line-height: 1.6; }
+
+    td.dose-cell { font-variant-numeric: tabular-nums; font-weight: 600; }
+    td.time-cell { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    .row-actions { white-space: nowrap; text-align: right; }
+    .icon-btn {
+      border: none; background: transparent; color: var(--muted); cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 4px 6px;
+      min-width: 36px; min-height: 36px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+    }
+    .icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .icon-danger:hover { color: var(--danger); background: var(--danger-soft); }
+
+    /* ===== Chips & pills (coloured drug labels) ===== */
+    .drug-pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px;
+      border-radius: 999px; border: 1px solid var(--border-strong);
+      background: rgba(255,255,255,0.05); max-width: 100%; font-size: 13.5px;
+    }
+    .drug-pill .color-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+    .drug-chip {
+      display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px;
+      border-radius: 999px; font-weight: 600; font-size: 13.5px;
+      max-width: 100%; border: 1px solid var(--border-strong);
+    }
+    /* Long names get an ellipsis (…) instead of breaking mid-word */
+    .drug-chip > span:not(.dot) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .drug-chip .dot {
+      width: 9px; height: 9px; border-radius: 999px; flex: 0 0 9px;
+      background: var(--dot, #56c1ab); box-shadow: 0 0 0 1px rgba(0,0,0,0.15) inset;
+    }
+
+    .edit-input { width: 100%; min-width: 0; }
+
+    /* Edit amount + unit layout; unit keeps its natural width. */
+    .edit-amount-grid { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; }
+    .edit-amount-grid select { width: auto; }
+
+    /* Keep iOS autofill readable in the dark theme. */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--text);
+      -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+      caret-color: var(--text);
+    }
+
+    /* ===== Snackbar (toast) ===== */
+    .snackbar {
+      position: fixed; left: 50%; bottom: calc(24px + var(--safe-bottom));
+      transform: translateX(-50%);
+      background: var(--surface-3); color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px; padding: 12px 16px;
+      box-shadow: var(--shadow);
+      display: none; gap: 12px; align-items: center; z-index: 1000;
+      font-size: 14px; font-weight: 500;
+      /* Size to text, capped for long messages. */
+      width: max-content;
+      max-width: min(92vw, 420px);
+    }
+    .snackbar.show { display: inline-flex; animation: toast-in var(--t-med) var(--ease); }
+    /* The "Undo" button inside the snackbar */
+    .snackbar-action {
+      border: none; background: transparent;
+      color: var(--accent-strong); font-family: inherit;
+      font-size: 14px; font-weight: 700;
+      padding: 6px 8px; margin: -4px -6px -4px 0;
+      border-radius: 8px; cursor: pointer; flex-shrink: 0;
+    }
+    .snackbar-action:hover { background: var(--accent-soft); }
+    .snackbar-action[hidden] { display: none; }
+
+    /* ===== Modals ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(8, 10, 14, 0.65);
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+      z-index: 1100; padding: 16px;
+      animation: fade-in var(--t-fast) ease forwards;
+    }
+    .modal-overlay.show { display: flex; }
+    #confirm { z-index: 1200; }
+
+    @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.98) } to { opacity: 1; transform: none } }
+    @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 10px) } to { opacity: 1; transform: translate(-50%, 0) } }
+
+    .modal {
+      width: min(92vw, 520px); max-height: 80vh; overflow: auto;
+      background: var(--surface-3);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      animation: pop-in var(--t-med) var(--ease) forwards;
+    }
+    .modal h4 { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .modal p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .btn { padding: 10px 14px; min-height: 42px; font-size: 14px; }
+    .btn-danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
+    .btn-danger:hover { background: rgba(239,110,102,0.22); }
+    .btn-ghost { background: transparent; }
+    .btn-ghost:hover { background: rgba(255,255,255,0.07); }
+    /* A real link dressed as a button (the "Open PsychonautWiki" action) */
+    a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+    /* Compact centred substance-info dialog. */
+    .wiki-modal { max-width: 340px; text-align: center; }
+    .wiki-modal h4 {
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      font-size: 18px; margin: 2px 0 10px;
+    }
+    .wiki-dot {
+      width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto;
+      background: var(--accent);
+    }
+    .wiki-modal p { max-width: 30ch; margin: 0 auto 18px; text-wrap: balance; }
+    .wiki-modal .actions { flex-direction: column; gap: 8px; }
+    .wiki-modal .actions .btn { width: 100%; }
+
+    /* ===== Combination checker =====
+       Picker chips map to TripSit groups; results show TripSit's text. */
+    .combo-modal { width: min(92vw, 440px); }
+    .combo-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .combo-head h4 { margin: 0; }
+    .combo-modal .combo-hint { font-size: 13.5px; margin: 0 0 10px; }
+    .combo-chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 12px; }
+    .combo-chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 12px; border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: background var(--t-fast) var(--ease),
+                  border-color var(--t-fast) var(--ease),
+                  color var(--t-fast) var(--ease);
+    }
+    .combo-chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+    .combo-chip .tick { display: none; font-weight: 700; color: var(--accent-strong); }
+    .combo-chip.sel { border-color: var(--accent-border); background: var(--accent-soft); color: var(--text); }
+    .combo-chip.sel .tick { display: inline; }
+    .combo-modal .combo-note-line { font-size: 12.5px; color: var(--faint); margin: 0 0 10px; line-height: 1.5; }
+    #combo-show { width: 100%; }
+    #combo-show[disabled] { opacity: 0.45; cursor: default; }
+    .combo-row {
+      border: 1px solid var(--border-strong);
+      border-left: 4px solid var(--st, var(--border-strong));
+      background: var(--surface-2);
+      border-radius: 12px; padding: 10px 12px; margin: 0 0 8px;
+    }
+    .combo-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .combo-pair { font-weight: 700; font-size: 14px; }
+    .combo-status { font-weight: 700; font-size: 12.5px; color: var(--st, var(--muted)); text-align: right; }
+    .combo-modal .combo-tsnote { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+    #combo-back { width: 100%; margin: 4px 0 0; }
+    .combo-modal .combo-attrib { font-size: 12px; color: var(--faint); margin: 14px 0 0; line-height: 1.5; }
+    .combo-attrib a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+    /* Share preview: the exact image about to be sent, scrollable if long */
+    #share-preview-img {
+      display: block; width: 100%;
+      border: 1px solid var(--border-strong); border-radius: 12px;
+    }
+
+    /* QR code with scanner quiet zone. */
+    .qr-card {
+      width: fit-content;
+      margin: 12px auto 6px;
+      padding: 14px;
+      background: #ffffff;
+      border-radius: 12px;
+    }
+    .qr-card svg { display: block; width: 148px; height: 148px; }
+
+    /* Readable address + guide link under the QR in the Information dialog */
+    .privacy-content .qr-url {
+      text-align: center; font-size: 15px; font-weight: 650;
+      color: var(--text); margin: 0 0 6px;
+    }
+    .privacy-content .contact-line { text-align: center; font-size: 13.5px; margin: 14px 0 0; }
+    /* Compact disclosure line. */
+    .privacy-content .fine-print { font-size: 12.5px; color: var(--faint); text-align: center; margin: 12px 0 0; }
+    /* The quiet version stamp at the very bottom of the dialog */
+    .privacy-content .version-line {
+      text-align: center; font-size: 10.5px; font-weight: 600;
+      color: var(--faint); opacity: 0.75;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      margin: 14px 0 0;
+    }
+    .contact-line a { color: var(--accent-strong); text-underline-offset: 3px; }
+    #welcome-again { display: block; margin: 12px auto 0; }
+
+    /* ===== Welcome screen (first visit) ===== */
+    #welcome { z-index: 1150; }
+    .welcome { width: min(92vw, 460px); text-align: center; padding: 20px 20px 16px; }
+    .welcome-emblem {
+      width: 56px; height: 56px; margin: 0 auto 10px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #232b36 0%, #11151b 100%);
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45),
+                  0 0 26px color-mix(in srgb, var(--accent) 18%, transparent);
+      display: grid; place-items: center;
+    }
+    .welcome-emblem svg { width: 42px; height: 42px; }
+    .welcome h2 { margin: 0 0 4px; font-size: 21px; font-weight: 750; letter-spacing: -0.02em; }
+    .welcome-tagline { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .welcome-install {
+      text-align: left; margin-bottom: 12px;
+      background: var(--accent-soft); border: 1px solid var(--accent-border);
+      border-radius: var(--radius-sm); padding: 10px 12px 12px;
+    }
+    .welcome-install[hidden] { display: none; }
+    .welcome-install-title {
+      margin: 0 0 8px; font-size: 12.5px; font-weight: 700;
+      color: var(--accent-strong); text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .welcome-install-note { margin: 0 0 6px; color: var(--muted); font-size: 13.5px; }
+    .welcome-install-note[hidden] { display: none; }
+    /* Quiet Android install warning note. */
+    .welcome-install-hint {
+      margin: 12px 0 0; padding: 10px 12px; text-align: left;
+      background: var(--accent-soft); border: 1px solid var(--accent-border);
+      border-radius: var(--radius-sm); color: var(--muted);
+      font-size: 12.5px; line-height: 1.5;
+    }
+    .welcome-install-hint[hidden] { display: none; }
+    .welcome-install-hint b { color: var(--accent-strong); }
+    .welcome-steps { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.55; display: grid; gap: 7px; }
+    .welcome-steps[hidden] { display: none; }
+    .welcome-steps b { color: var(--accent-strong); }
+    /* Plain (unnumbered) variant used for the "help a friend" lines */
+    .welcome-steps.plain { list-style: none; padding-left: 2px; }
+    /* Small inline Share icon so people can match the picture, not read */
+    .share-glyph { display: inline-block; vertical-align: -3px; margin: 0 1px; color: var(--accent-strong); }
+    #welcome-install-btn {
+      width: 100%; margin: 2px 0 0; min-height: 48px; font-size: 15px;
+      background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 55%);
+      border-color: transparent; color: var(--on-accent); font-weight: 700;
+    }
+    #welcome-install-btn[hidden] { display: none; }
+    .welcome-start {
+      width: 100%; min-height: 48px; font-size: 15px; font-weight: 700;
+      background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 55%);
+      border-color: transparent; color: var(--on-accent);
+      box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+    .welcome-start:hover { background: var(--accent-strong); }
+    /* Quieter "Maybe later" look when installing is the main action */
+    .welcome-start.welcome-later {
+      background: var(--surface-2); color: var(--muted); font-weight: 600;
+      border: 1px solid var(--border); box-shadow: none;
+    }
+    .welcome-start.welcome-later:hover { background: var(--surface-3); color: var(--text); }
+    /* Bouncing arrow toward Safari's Share button (bottom toolbar) */
+    .welcome-share-arrow {
+      position: fixed; left: 50%; bottom: calc(4px + var(--safe-bottom));
+      transform: translateX(-50%);
+      color: var(--accent-strong); pointer-events: none;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+      animation: share-arrow-bounce 1.3s ease-in-out infinite;
+    }
+    .welcome-share-arrow[hidden] { display: none; }
+    @keyframes share-arrow-bounce {
+      0%, 100% { transform: translate(-50%, -6px); }
+      50% { transform: translate(-50%, 2px); }
+    }
+    @media (prefers-reduced-motion: reduce) { .welcome-share-arrow { animation: none; } }
+
+    /* ===== In-app number pad ===== */
+    /* Clean digits-only pad used instead of the phone keypad. */
+    #numpad {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 10px 12px calc(10px + var(--safe-bottom));
+      background: var(--surface-3);
+      border-top: 1px solid var(--border-strong);
+      box-shadow: 0 -12px 30px rgba(0,0,0,0.4);
+    }
+    #numpad.show { display: grid; animation: numpad-in var(--t-med) var(--ease); }
+    @keyframes numpad-in { from { transform: translateY(16px); opacity: 0 } to { transform: none; opacity: 1 } }
+    .numpad-key {
+      font-family: inherit;
+      min-height: 52px;
+      font-size: 22px; font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      cursor: pointer;
+      transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+    }
+    .numpad-key:active { background: var(--surface-3); transform: scale(0.96); }
+    #numpad-action {
+      grid-column: 1 / -1;
+      font-size: 17px; font-weight: 700;
+      color: var(--accent-strong);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+    /* Extra scroll room so focused fields can sit above the pad. */
+    body.numpad-open .container { padding-bottom: 440px; }
+
+    /* ===== iOS install hint banner ===== */
+    .install-hint {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(76px + var(--safe-bottom));
+      width: min(92vw, 420px);
+      background: var(--surface-3);
+      border: 1px solid var(--accent-border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      display: flex; gap: 10px; align-items: flex-start;
+      z-index: 1060;
+      font-size: 13.5px; line-height: 1.5; color: var(--text);
+      animation: toast-in var(--t-med) var(--ease);
+    }
+    .install-hint[hidden] { display: none; }
+    .install-hint .share-icon { flex-shrink: 0; margin-top: 1px; color: var(--accent-strong); }
+    .install-hint b { color: var(--accent-strong); }
+    .install-hint .hint-install {
+      flex-shrink: 0; align-self: center; min-height: 36px; padding: 6px 14px;
+      background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 55%);
+      border-color: transparent; color: var(--on-accent); font-weight: 700;
+    }
+    .install-hint .hint-install[hidden] { display: none; }
+    .install-hint .hint-close {
+      flex-shrink: 0; border: none; background: transparent; color: var(--muted);
+      font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px;
+      min-width: 32px; min-height: 32px; border-radius: 8px;
+    }
+    .install-hint .hint-close:hover { color: var(--text); background: rgba(255,255,255,0.07); }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 960px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 720px) {
+      .container { padding-left: 14px; padding-right: 14px; }
+      .grid { grid-template-columns: 1fr; gap: 10px; }
+      .dose-grid { grid-template-columns: 1fr 104px auto; }
+      .toolbar { gap: 8px; }
+      .toolbar button { padding: 0 13px; font-size: 13.5px; }
+      .log-header { padding: 12px; }
+      .log { overflow-x: hidden; }
+
+      thead th { white-space: normal; padding: 8px; }
+      tbody td { padding: 10px 8px; }
+      thead th:nth-child(4), tbody td:nth-child(4) { text-align: right; }
+      tbody td:nth-child(2) { white-space: normal; overflow-wrap: anywhere; }
+      tbody td:nth-child(1) .drug-chip { display: inline-flex; max-width: 100%; }
+
+      /* On narrow screens, stack the amount field above the unit picker so
+         each gets the full width and typed numbers are always visible */
+      .edit-amount-grid { grid-template-columns: 1fr; }
+
+      /* While editing a row, allow sideways scroll */
+      body.editing .log { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+
+    /* Users who prefer less motion get (almost) none */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <!-- Inline app icon, matching the home-screen icon. -->
+      <div class="app-emblem" aria-hidden="true">
+        <svg viewBox="0 0 512 512" focusable="false">
+          <g transform="translate(256 256) scale(1.26) rotate(28) translate(-256 -256)">
+            <rect x="186" y="104" width="140" height="304" rx="70" fill="#e9ecf2"/>
+            <path d="M186 256 h140 v82 a70 70 0 0 1 -140 0 z" style="fill: var(--accent)"/>
+            <rect x="186" y="252" width="140" height="7" fill="#0f1216" opacity="0.30"/>
+            <rect x="203" y="126" width="22" height="90" rx="11" fill="#ffffff" opacity="0.45"/>
+            <rect x="203" y="300" width="22" height="66" rx="11" fill="#ffffff" opacity="0.18"/>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <h1>DoseLog</h1>
+        <p>Track doses and timing easily on any device.</p>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <button id="add-med">+ Add substance</button>
+      </div>
+    </div>
+
+    <section class="grid" id="drug-grid" aria-label="Substances"></section>
+
+    <section class="log" aria-label="Dose log">
+      <div class="log-header">
+        <div class="log-title-row">
+          <h3>Tonight's log</h3>
+          <button id="clear-log" class="clear-log-btn" title="Clear the log">clear</button>
+        </div>
+        <div class="controls">
+          <button id="share-log" title="Send your current log as an image">Share with a friend</button>
+          <button id="combo-open" title="Check your combination against TripSit's chart" aria-haspopup="dialog" aria-controls="combo">Check combinations</button>
+        </div>
+      </div>
+      <table aria-label="Dose log">
+        <thead>
+          <tr>
+            <th scope="col">Substance</th>
+            <th scope="col">Doses</th>
+            <th scope="col">Time</th>
+            <th scope="col" aria-label="Actions"></th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr class="empty-row"><td colspan="4">No doses logged yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Quiet footer for rarely-used actions. -->
+    <footer class="page-footer">
+      <button id="privacy-open" class="footer-link" aria-haspopup="dialog" aria-controls="privacy">Information</button>
+      <span class="footer-sep" aria-hidden="true">·</span>
+      <button id="reset-all" class="footer-link footer-link-danger" title="Clear drugs and entries">Reset everything</button>
+    </footer>
+  </div>
+
+  <!-- Install hint banner for browser-tab use. -->
+  <div id="install-hint" class="install-hint" hidden role="note">
+    <svg class="share-icon" width="18" height="22" viewBox="0 0 18 22" fill="none" aria-hidden="true">
+      <path d="M9 1v13M5 5l4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 9H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span id="install-hint-msg">Install this app: tap <b>Share</b> in Safari, then <b>"Add&nbsp;to&nbsp;Home&nbsp;Screen"</b>. It will work fully offline.</span>
+    <button class="btn hint-install" id="install-hint-btn" hidden>Install</button>
+    <button class="hint-close" id="install-hint-close" aria-label="Dismiss install hint">&times;</button>
+  </div>
+
+  <!-- Snackbar (can carry an "Undo" button for reversible deletions) -->
+  <div id="snackbar" class="snackbar" role="status" aria-live="polite">
+    <span class="msg" id="snackbar-msg"></span>
+    <button type="button" class="snackbar-action" id="snackbar-action" hidden>Undo</button>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div id="confirm" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="display:none;">
+    <div class="modal" role="document">
+      <h4 id="confirm-title">Please confirm</h4>
+      <p id="confirm-msg">Are you sure you want to proceed?</p>
+      <div class="actions">
+        <button class="btn btn-ghost" id="confirm-no" autofocus>No</button>
+        <button class="btn btn-danger" id="confirm-yes">Yes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Substance info dialog shown before opening PsychonautWiki. -->
+  <div id="wiki" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="wiki-title" style="display:none;">
+    <div class="modal wiki-modal" role="document">
+      <h4 id="wiki-title"><span class="wiki-dot" id="wiki-dot" aria-hidden="true"></span><span id="wiki-name">Substance info</span></h4>
+      <p>Read about this substance on <strong>PsychonautWiki</strong>, an independent encyclopedia.</p>
+      <div class="actions">
+        <a class="btn" id="wiki-open" href="#" target="_blank" rel="noopener noreferrer">Open PsychonautWiki ↗</a>
+        <button class="btn btn-ghost" id="wiki-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User-initiated TripSit combination checker. -->
+  <div id="combo" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="combo-title" style="display:none;">
+    <div class="modal combo-modal" role="document">
+      <div class="combo-head">
+        <h4 id="combo-title">Check combinations</h4>
+        <div class="actions"><button class="btn btn-ghost" id="combo-close">Close</button></div>
+      </div>
+      <div id="combo-picker">
+        <p class="combo-hint">Select what was taken — TripSit's chart rates these in combination:</p>
+        <div class="combo-chips" id="combo-chips"></div>
+        <p class="combo-note-line" id="combo-matched" hidden></p>
+        <p class="combo-note-line" id="combo-unmatched" hidden></p>
+        <button class="btn" id="combo-show">Show TripSit's ratings</button>
+      </div>
+      <div id="combo-results" hidden>
+        <div id="combo-list"></div>
+        <button class="btn btn-ghost" id="combo-back">Change selection</button>
+      </div>
+      <p class="combo-attrib">Ratings by <a href="https://combo.tripsit.me/" target="_blank" rel="noopener noreferrer">TripSit</a>, shown word-for-word (snapshot <span id="combo-snapshot"></span>) — <a href="https://combo.tripsit.me/" target="_blank" rel="noopener noreferrer">see the live chart&nbsp;↗</a></p>
+    </div>
+  </div>
+
+  <!-- Welcome-back prompt: offered when the log still holds entries from a
+       previous night, so each night can start with a clean slate -->
+  <div id="fresh-start" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fresh-title" style="display:none;">
+    <div class="modal" role="document">
+      <h4 id="fresh-title">Welcome back</h4>
+      <p id="fresh-msg">Your log still has entries from a previous night. Start fresh, or keep them?</p>
+      <div class="actions">
+        <button class="btn btn-ghost" id="fresh-keep">Keep them</button>
+        <button class="btn" id="fresh-clear">Start fresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share preview modal: shows the image before it goes anywhere -->
+  <div id="share-preview" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="share-preview-title" style="display:none;">
+    <div class="modal" role="document">
+      <h4 id="share-preview-title">Share this image?</h4>
+      <p>This is exactly what will be sent.</p>
+      <img id="share-preview-img" alt="Preview of your dose log image" />
+      <div class="actions" style="margin-top:16px;">
+        <button class="btn btn-ghost" id="share-cancel">Cancel</button>
+        <button class="btn" id="share-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome screen: shown once on the first visit; reopen any time via
+       Information → "Show welcome & install guide" -->
+  <div id="welcome" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title" style="display:none;">
+    <div class="modal welcome" role="document">
+      <!-- Same capsule emblem as the header / home-screen icon -->
+      <div class="welcome-emblem" aria-hidden="true">
+        <svg viewBox="0 0 512 512" focusable="false">
+          <g transform="translate(256 256) scale(1.26) rotate(28) translate(-256 -256)">
+            <rect x="186" y="104" width="140" height="304" rx="70" fill="#e9ecf2"/>
+            <path d="M186 256 h140 v82 a70 70 0 0 1 -140 0 z" style="fill: var(--accent)"/>
+            <rect x="186" y="252" width="140" height="7" fill="#0f1216" opacity="0.30"/>
+            <rect x="203" y="126" width="22" height="90" rx="11" fill="#ffffff" opacity="0.45"/>
+            <rect x="203" y="300" width="22" height="66" rx="11" fill="#ffffff" opacity="0.18"/>
+          </g>
+        </svg>
+      </div>
+      <h2 id="welcome-title">Welcome to DoseLog</h2>
+      <p class="welcome-tagline">A simple, private way to keep track of what you take and when.</p>
+      <div class="welcome-install" id="welcome-install">
+        <h3 class="welcome-install-title" id="welcome-install-title">Get it on your home screen</h3>
+        <p class="welcome-install-note" id="welcome-install-note" hidden>A friend can install it too:</p>
+        <button class="btn" id="welcome-install-btn" hidden>Install the app</button>
+        <ol class="welcome-steps" id="welcome-steps"></ol>
+        <p class="welcome-install-hint" id="welcome-install-hint" hidden></p>
+      </div>
+      <button class="btn welcome-start" id="welcome-start">Get started</button>
+    </div>
+    <!-- Bouncing arrow pointing at Safari's Share button in the bottom toolbar
+         (shown only in Safari on iPhone while the welcome is open) -->
+    <div class="welcome-share-arrow" id="welcome-share-arrow" hidden aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M5 13l7 7 7-7"/></svg>
+    </div>
+  </div>
+
+  <!-- Privacy Modal -->
+  <div id="privacy" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="privacy-title" style="display:none;">
+    <div class="modal" role="document">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;">
+        <h4 id="privacy-title" style="margin:0;">Information</h4>
+        <div class="actions">
+          <button class="btn btn-ghost" id="privacy-close">Close</button>
+        </div>
+      </div>
+      <div class="privacy-content">
+        <p><em>Everything you track stays on your phone.</em> There is no server and no account — nothing is ever uploaded, and the app works fully offline. Anyone opening the app’s link just gets their own empty copy. To erase your data, use “Reset everything”.</p>
+        <p>If a friend wants DoseLog too, they can scan this code or type in the address:</p>
+        <div class="qr-card">
+          <!-- QR code for the app URL (generated once, works offline) -->
+          <svg role="img" aria-label="QR code linking to the DoseLog app" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h29v29H0z"/><path fill="#000000" d="M0,0H1V1H0zM1,0H2V1H1zM2,0H3V1H2zM3,0H4V1H3zM4,0H5V1H4zM5,0H6V1H5zM6,0H7V1H6zM9,0H10V1H9zM14,0H15V1H14zM18,0H19V1H18zM20,0H21V1H20zM22,0H23V1H22zM23,0H24V1H23zM24,0H25V1H24zM25,0H26V1H25zM26,0H27V1H26zM27,0H28V1H27zM28,0H29V1H28zM0,1H1V2H0zM6,1H7V2H6zM8,1H9V2H8zM9,1H10V2H9zM12,1H13V2H12zM13,1H14V2H13zM15,1H16V2H15zM19,1H20V2H19zM20,1H21V2H20zM22,1H23V2H22zM28,1H29V2H28zM0,2H1V3H0zM2,2H3V3H2zM3,2H4V3H3zM4,2H5V3H4zM6,2H7V3H6zM8,2H9V3H8zM9,2H10V3H9zM10,2H11V3H10zM14,2H15V3H14zM15,2H16V3H15zM18,2H19V3H18zM20,2H21V3H20zM22,2H23V3H22zM24,2H25V3H24zM25,2H26V3H25zM26,2H27V3H26zM28,2H29V3H28zM0,3H1V4H0zM2,3H3V4H2zM3,3H4V4H3zM4,3H5V4H4zM6,3H7V4H6zM10,3H11V4H10zM12,3H13V4H12zM13,3H14V4H13zM15,3H16V4H15zM17,3H18V4H17zM19,3H20V4H19zM20,3H21V4H20zM22,3H23V4H22zM24,3H25V4H24zM25,3H26V4H25zM26,3H27V4H26zM28,3H29V4H28zM0,4H1V5H0zM2,4H3V5H2zM3,4H4V5H3zM4,4H5V5H4zM6,4H7V5H6zM11,4H12V5H11zM14,4H15V5H14zM15,4H16V5H15zM17,4H18V5H17zM19,4H20V5H19zM22,4H23V5H22zM24,4H25V5H24zM25,4H26V5H25zM26,4H27V5H26zM28,4H29V5H28zM0,5H1V6H0zM6,5H7V6H6zM9,5H10V6H9zM10,5H11V6H10zM12,5H13V6H12zM13,5H14V6H13zM15,5H16V6H15zM19,5H20V6H19zM20,5H21V6H20zM22,5H23V6H22zM28,5H29V6H28zM0,6H1V7H0zM1,6H2V7H1zM2,6H3V7H2zM3,6H4V7H3zM4,6H5V7H4zM5,6H6V7H5zM6,6H7V7H6zM8,6H9V7H8zM10,6H11V7H10zM12,6H13V7H12zM14,6H15V7H14zM16,6H17V7H16zM18,6H19V7H18zM20,6H21V7H20zM22,6H23V7H22zM23,6H24V7H23zM24,6H25V7H24zM25,6H26V7H25zM26,6H27V7H26zM27,6H28V7H27zM28,6H29V7H28zM14,7H15V8H14zM15,7H16V8H15zM17,7H18V8H17zM18,7H19V8H18zM19,7H20V8H19zM1,8H2V9H1zM2,8H3V9H2zM3,8H4V9H3zM5,8H6V9H5zM6,8H7V9H6zM9,8H10V9H9zM11,8H12V9H11zM13,8H14V9H13zM16,8H17V9H16zM26,8H27V9H26zM27,8H28V9H27zM2,9H3V10H2zM5,9H6V10H5zM10,9H11V10H10zM13,9H14V10H13zM21,9H22V10H21zM22,9H23V10H22zM24,9H25V10H24zM26,9H27V10H26zM28,9H29V10H28zM0,10H1V11H0zM1,10H2V11H1zM3,10H4V11H3zM5,10H6V11H5zM6,10H7V11H6zM9,10H10V11H9zM12,10H13V11H12zM14,10H15V11H14zM17,10H18V11H17zM18,10H19V11H18zM22,10H23V11H22zM23,10H24V11H23zM24,10H25V11H24zM25,10H26V11H25zM26,10H27V11H26zM27,10H28V11H27zM0,11H1V12H0zM2,11H3V12H2zM4,11H5V12H4zM5,11H6V12H5zM7,11H8V12H7zM11,11H12V12H11zM12,11H13V12H12zM13,11H14V12H13zM14,11H15V12H14zM18,11H19V12H18zM20,11H21V12H20zM28,11H29V12H28zM0,12H1V13H0zM1,12H2V13H1zM3,12H4V13H3zM5,12H6V13H5zM6,12H7V13H6zM8,12H9V13H8zM9,12H10V13H9zM10,12H11V13H10zM11,12H12V13H11zM13,12H14V13H13zM14,12H15V13H14zM15,12H16V13H15zM16,12H17V13H16zM17,12H18V13H17zM19,12H20V13H19zM21,12H22V13H21zM23,12H24V13H23zM25,12H26V13H25zM26,12H27V13H26zM27,12H28V13H27zM28,12H29V13H28zM2,13H3V14H2zM3,13H4V14H3zM4,13H5V14H4zM5,13H6V14H5zM7,13H8V14H7zM8,13H9V14H8zM10,13H11V14H10zM13,13H14V14H13zM14,13H15V14H14zM19,13H20V14H19zM22,13H23V14H22zM23,13H24V14H23zM25,13H26V14H25zM26,13H27V14H26zM28,13H29V14H28zM0,14H1V15H0zM2,14H3V15H2zM3,14H4V15H3zM6,14H7V15H6zM9,14H10V15H9zM13,14H14V15H13zM15,14H16V15H15zM16,14H17V15H16zM17,14H18V15H17zM18,14H19V15H18zM19,14H20V15H19zM21,14H22V15H21zM23,14H24V15H23zM24,14H25V15H24zM25,14H26V15H25zM27,14H28V15H27zM28,14H29V15H28zM0,15H1V16H0zM1,15H2V16H1zM3,15H4V16H3zM5,15H6V16H5zM7,15H8V16H7zM9,15H10V16H9zM10,15H11V16H10zM11,15H12V16H11zM12,15H13V16H12zM14,15H15V16H14zM16,15H17V16H16zM17,15H18V16H17zM18,15H19V16H18zM20,15H21V16H20zM21,15H22V16H21zM22,15H23V16H22zM24,15H25V16H24zM25,15H26V16H25zM28,15H29V16H28zM0,16H1V17H0zM1,16H2V17H1zM3,16H4V17H3zM4,16H5V17H4zM5,16H6V17H5zM6,16H7V17H6zM8,16H9V17H8zM10,16H11V17H10zM11,16H12V17H11zM12,16H13V17H12zM13,16H14V17H13zM14,16H15V17H14zM16,16H17V17H16zM17,16H18V17H17zM18,16H19V17H18zM20,16H21V17H20zM21,16H22V17H21zM23,16H24V17H23zM24,16H25V17H24zM25,16H26V17H25zM27,16H28V17H27zM5,17H6V18H5zM8,17H9V18H8zM10,17H11V18H10zM11,17H12V18H11zM13,17H14V18H13zM16,17H17V18H16zM17,17H18V18H17zM23,17H24V18H23zM0,18H1V19H0zM2,18H3V19H2zM3,18H4V19H3zM4,18H5V19H4zM5,18H6V19H5zM6,18H7V19H6zM9,18H10V19H9zM13,18H14V19H13zM15,18H16V19H15zM16,18H17V19H16zM20,18H21V19H20zM22,18H23V19H22zM23,18H24V19H23zM24,18H25V19H24zM2,19H3V20H2zM7,19H8V20H7zM9,19H10V20H9zM10,19H11V20H10zM12,19H13V20H12zM14,19H15V20H14zM17,19H18V20H17zM19,19H20V20H19zM21,19H22V20H21zM22,19H23V20H22zM25,19H26V20H25zM26,19H27V20H26zM28,19H29V20H28zM1,20H2V21H1zM3,20H4V21H3zM6,20H7V21H6zM9,20H10V21H9zM12,20H13V21H12zM14,20H15V21H14zM16,20H17V21H16zM17,20H18V21H17zM18,20H19V21H18zM20,20H21V21H20zM21,20H22V21H21zM22,20H23V21H22zM23,20H24V21H23zM24,20H25V21H24zM25,20H26V21H25zM26,20H27V21H26zM8,21H9V22H8zM10,21H11V22H10zM11,21H12V22H11zM13,21H14V22H13zM14,21H15V22H14zM18,21H19V22H18zM20,21H21V22H20zM24,21H25V22H24zM25,21H26V22H25zM27,21H28V22H27zM28,21H29V22H28zM0,22H1V23H0zM1,22H2V23H1zM2,22H3V23H2zM3,22H4V23H3zM4,22H5V23H4zM5,22H6V23H5zM6,22H7V23H6zM11,22H12V23H11zM13,22H14V23H13zM16,22H17V23H16zM17,22H18V23H17zM19,22H20V23H19zM20,22H21V23H20zM22,22H23V23H22zM24,22H25V23H24zM26,22H27V23H26zM27,22H28V23H27zM0,23H1V24H0zM6,23H7V24H6zM8,23H9V24H8zM9,23H10V24H9zM10,23H11V24H10zM12,23H13V24H12zM13,23H14V24H13zM15,23H16V24H15zM18,23H19V24H18zM20,23H21V24H20zM24,23H25V24H24zM0,24H1V25H0zM2,24H3V25H2zM3,24H4V25H3zM4,24H5V25H4zM6,24H7V25H6zM9,24H10V25H9zM10,24H11V25H10zM11,24H12V25H11zM12,24H13V25H12zM13,24H14V25H13zM14,24H15V25H14zM15,24H16V25H15zM18,24H19V25H18zM20,24H21V25H20zM21,24H22V25H21zM22,24H23V25H22zM23,24H24V25H23zM24,24H25V25H24zM25,24H26V25H25zM26,24H27V25H26zM28,24H29V25H28zM0,25H1V26H0zM2,25H3V26H2zM3,25H4V26H3zM4,25H5V26H4zM6,25H7V26H6zM8,25H9V26H8zM9,25H10V26H9zM10,25H11V26H10zM11,25H12V26H11zM16,25H17V26H16zM18,25H19V26H18zM19,25H20V26H19zM24,25H25V26H24zM27,25H28V26H27zM0,26H1V27H0zM2,26H3V27H2zM3,26H4V27H3zM4,26H5V27H4zM6,26H7V27H6zM8,26H9V27H8zM10,26H11V27H10zM11,26H12V27H11zM13,26H14V27H13zM15,26H16V27H15zM16,26H17V27H16zM17,26H18V27H17zM18,26H19V27H18zM20,26H21V27H20zM23,26H24V27H23zM25,26H26V27H25zM28,26H29V27H28zM0,27H1V28H0zM6,27H7V28H6zM8,27H9V28H8zM9,27H10V28H9zM11,27H12V28H11zM12,27H13V28H12zM16,27H17V28H16zM20,27H21V28H20zM21,27H22V28H21zM22,27H23V28H22zM24,27H25V28H24zM25,27H26V28H25zM27,27H28V28H27zM0,28H1V29H0zM1,28H2V29H1zM2,28H3V29H2zM3,28H4V29H3zM4,28H5V29H4zM5,28H6V29H5zM6,28H7V29H6zM9,28H10V29H9zM11,28H12V29H11zM12,28H13V29H12zM13,28H14V29H13zM15,28H16V29H15zM18,28H19V29H18zM19,28H20V29H19zM20,28H21V29H20zM21,28H22V29H21zM23,28H24V29H23zM25,28H26V29H25zM27,28H28V29H27z"/></svg>
+        </div>
+        <p class="qr-url">doselog.github.io</p>
+        <p class="contact-line">Questions or feedback? Contact us at <a href="mailto:doselogsupport@proton.me">doselogsupport@proton.me</a>.</p>
+        <button class="btn btn-ghost" id="welcome-again">Show welcome &amp; install guide</button>
+        <p class="fine-print">DoseLog is a logbook, not medical advice.</p>
+        <p class="version-line">DoseLog 1.0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-app number pad (slides up instead of the system keyboard) -->
+  <div id="numpad" role="group" aria-label="Number pad">
+    <button type="button" class="numpad-key" data-key="1">1</button>
+    <button type="button" class="numpad-key" data-key="2">2</button>
+    <button type="button" class="numpad-key" data-key="3">3</button>
+    <button type="button" class="numpad-key" data-key="4">4</button>
+    <button type="button" class="numpad-key" data-key="5">5</button>
+    <button type="button" class="numpad-key" data-key="6">6</button>
+    <button type="button" class="numpad-key" data-key="7">7</button>
+    <button type="button" class="numpad-key" data-key="8">8</button>
+    <button type="button" class="numpad-key" data-key="9">9</button>
+    <button type="button" class="numpad-key" data-key="." aria-label="Decimal point">.</button>
+    <button type="button" class="numpad-key" data-key="0">0</button>
+    <button type="button" class="numpad-key" data-key="back" aria-label="Delete last digit">⌫</button>
+    <button type="button" class="numpad-key" id="numpad-action" data-key="action">Add</button>
+  </div>
+
+  <script>
+    // --- Utilities ---
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    function timeStr(d) {
+      if (!d || isNaN(d)) return '—';
+      try { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(d); }
+      catch { return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); }
+    }
+
+    function dateLabel(d) {
+      // Formatted the way the phone's own region writes dates ("Jul 3" / "3. Juli")
+      if (!d || isNaN(d)) return '—';
+      try { return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(d); }
+      catch { return d.toLocaleDateString(); }
+    }
+
+    function dayKey(d) {
+      if (!d || isNaN(d)) return '1970-01-01';
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function fmtNumber(n) {
+      if (n == null || !isFinite(n)) return '';
+      return (Math.round(n*1000)/1000).toString();
+    }
+
+    function uid(prefix='id') { return `${prefix}_${Math.random().toString(36).slice(2,9)}_${Date.now().toString(36)}`; }
+
+    function formatAsTime(d) {
+      if (!d || isNaN(d)) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function nameKey(str) { return (str || '').toString().trim().toLowerCase(); }
+
+    function hexToRgba(hex, a = 1) {
+      const v = (hex || '').replace('#','');
+      const r = parseInt(v.substring(0,2),16) || 0;
+      const g = parseInt(v.substring(2,4),16) || 0;
+      const b = parseInt(v.substring(4,6),16) || 0;
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // --- Unit normalization & pluralization ---
+    function normalizeUnit(unitRaw) {
+      if (!unitRaw) return '';
+      const raw = unitRaw.trim();
+      const token = raw.toLowerCase();
+      if (token === 'ml') return 'mL';
+      if (token === 'l') return 'L';
+      if (token === 'ug' || token === 'mcg' || token === 'µg') return 'µg';
+      return raw.toLowerCase();
+    }
+
+    const PLURALS = { pill: ['pill', 'pills'], tab: ['tab', 'tabs'], line: ['line', 'lines'], drop: ['drop', 'drops'], unit: ['unit', 'units'] };
+
+    function displayValueUnit(value, unit) {
+      if (!unit) return fmtNumber(value);
+      const uCanon = normalizeUnit(unit);
+      const p = PLURALS[uCanon];
+      if (p) { const u = (value === 1) ? p[0] : p[1]; return `${fmtNumber(value)} ${u}`; }
+      return `${fmtNumber(value)} ${uCanon}`;
+    }
+
+    const UNIT_OPTIONS = [
+      { value: 'mg', label: 'mg' },
+      { value: 'g', label: 'g' },
+      { value: 'µg', label: 'µg' },
+      { value: 'pill', label: 'pill' },
+      { value: 'tab', label: 'tab' },
+      { value: 'line', label: 'line' },
+      { value: 'unit', label: 'unit' },
+      { value: 'ml', label: 'ml' },
+      { value: 'l', label: 'l' },
+      { value: 'drop', label: 'drop' }
+    ];
+
+    const palette = ['#ef4444','#f59e0b','#eab308','#84cc16','#22c55e','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
+    const paletteNames = ['Red','Orange','Yellow','Lime','Green','Teal','Cyan','Blue','Violet','Pink'];
+
+    // Presets power quick-pick chips, default units/colours, and TripSit mapping.
+    // `blend` is only visual; the stored colour remains a plain hex.
+    // 3-MMC intentionally has no TripSit mapping because TripSit has not charted it.
+    const PRESETS = [
+      { name: 'MDMA',       color: '#f97316', unit: 'mg',   ts: 'mdma' },
+      { name: 'Ketamine',   color: '#3b82f6', unit: 'line', ts: 'ketamine' },
+      { name: 'Speed',      color: '#facc15', unit: 'line', ts: 'amphetamines', wiki: 'Amphetamine' },
+      { name: 'Mephedrone', color: '#d97706', unit: 'line', ts: 'mephedrone' },
+      { name: '3-MMC',      color: '#fde68a', unit: 'line', ts: null },
+      { name: 'Cocaine',    color: '#f4f6f8', unit: 'line', ts: 'cocaine' },
+      { name: 'GHB',        color: '#7dd3fc', unit: 'ml',   ts: 'ghb/gbl' },
+      { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',
+        blend: { type: 'linear', colors: ['#ec4899', '#818cf8'] } },
+      { name: 'LSD',        color: '#a3e635', unit: 'µg',   ts: 'lsd',
+        blend: { type: 'conic', colors: ['#8b5cf6', '#38bdf8', '#a3e635', '#facc15', '#f472b6'] } },
+      { name: 'Shrooms',    color: '#8b5cf6', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms',
+        blend: { type: 'linear', colors: ['#8b5cf6', '#2dd4bf'] } },
+      { name: 'Weed',       color: '#22c55e', unit: 'g',    ts: 'cannabis', wiki: 'Cannabis' },
+      { name: 'Alcohol',    color: '#ef4444', unit: 'unit', ts: 'alcohol' }
+    ];
+    const findPreset = (name) => PRESETS.find(p => nameKey(p.name) === nameKey(name));
+    // Default name for freshly added cards ("New substance", "New substance 2").
+    const DEFAULT_NAME = 'New substance';
+    const isDefaultName = (s) => /^new substance( \d+)?$/.test(nameKey(s));
+    // Loose match: a preset name appearing as its own word inside the card
+    // name still counts as that preset.
+    // Only whole words count ("Ketamin" or "Keta" match nothing), and if two
+    // different preset names appear ("MDMA + Ketamine") it's ambiguous, so
+    // nothing matches. TripSit's alias table stays exact-match only.
+    const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function findPresetLoose(name) {
+      const exact = findPreset(name);
+      if (exact) return exact;
+      const hay = nameKey(name);
+      let found = null;
+      for (const p of PRESETS) {
+        const re = new RegExp(`(^|[^a-z0-9])${escapeRe(nameKey(p.name))}([^a-z0-9]|$)`);
+        if (re.test(hay)) {
+          if (found) return null; // two preset words → ambiguous
+          found = p;
+        }
+      }
+      return found;
+    }
+    // While renaming, preset chips are ranked by how well they fit the typed
+    // text: 0 = one starts with the other ("ket" → Ketamine), 1 = typed text
+    // appears inside the name, 2 = a typed word matches a TripSit alias of
+    // the preset ("adam" → MDMA), 3 = unrelated (keeps the original order).
+    // The last word is tried too, so "Dave's ket" still pulls Ketamine first.
+    // Alias matches only affect this ordering, never what a name maps to.
+    function presetMatchScore(p, typedRaw) {
+      const typed = nameKey(typedRaw);
+      // An untouched default name is not real typing — keep the default
+      // chip order ("new" would otherwise hit TripSit's alias "nexus"
+      // and pull 2C-B forward).
+      if (!typed || isDefaultName(typed)) return 3;
+      const name = nameKey(p.name);
+      const words = typed.split(/\s+/);
+      let best = 3;
+      for (const t of [typed, words[words.length - 1]]) {
+        if (!t) continue;
+        if (name.startsWith(t) || t.startsWith(name)) return 0;
+        if (name.includes(t)) best = 1;
+      }
+      if (best > 2 && p.ts) {
+        const aliases = PRESET_ALIASES.get(p.ts) || [];
+        for (const w of words) {
+          const wn = normTripsit(w);
+          if (!wn) continue;
+          for (const a of aliases) {
+            // Exact ("coke"), word grown past the alias ("adam's" → "adam"),
+            // or an alias still being typed out ("mol" → "molly")
+            if (wn === a ||
+                (a.length >= 3 && wn.startsWith(a)) ||
+                (wn.length >= 2 && a.startsWith(wn))) return 2;
+          }
+        }
+      }
+      return best;
+    }
+    // Old preset defaults used to migrate untouched cards after the repaint.
+    const OLD_PRESET_COLORS = {
+      'mdma': '#ec4899', 'speed': '#eab308', 'mephedrone': '#10b981',
+      '3-mmc': '#06b6d4', 'cocaine': '#e2e8f0', '2c-b': '#8b5cf6',
+      'lsd': '#84cc16', 'shrooms': '#f59e0b'
+    };
+    // A blend is only worn while the card still has its signature colour —
+    // picking any other colour in the menu switches back to a flat dot.
+    const blendFor = (name, color) => {
+      const p = findPresetLoose(name);
+      return (p && p.blend && color === p.color) ? p.blend : null;
+    };
+    // Dots use the full blend; card strips lay it out left-to-right.
+    const blendDotCss = (b) => b.type === 'conic'
+      ? `conic-gradient(from 210deg, ${b.colors.join(', ')}, ${b.colors[0]})`
+      : `linear-gradient(135deg, ${b.colors.join(', ')})`;
+    const blendStripCss = (b) => `linear-gradient(90deg, ${b.colors.join(', ')})`;
+    // Canvas version of preset blends; older engines fall back to flat colour.
+    function blendCanvasFill(ctx, x, y, r, name, color) {
+      const b = blendFor(name, color);
+      if (!b) return color;
+      if (b.type === 'conic') {
+        if (!ctx.createConicGradient) return color;
+        const g = ctx.createConicGradient(-Math.PI / 2, x, y);
+        b.colors.forEach((c, i) => g.addColorStop(i / b.colors.length, c));
+        g.addColorStop(1, b.colors[0]);
+        return g;
+      }
+      const g = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+      b.colors.forEach((c, i) => g.addColorStop(i / (b.colors.length - 1), c));
+      return g;
+    }
+    // `wiki` overrides the PsychonautWiki article title when needed.
+    const presetWikiName = (p) => p.wiki || p.name;
+    const presetWikiUrl = (p) =>
+      'https://psychonautwiki.org/wiki/' + encodeURIComponent(presetWikiName(p).replace(/ /g, '_'));
+
+    // ===== TripSit combination data (offline snapshot) =====
+    // Offline TripSit extract: pair ratings plus TripSit's alias table.
+    // Regenerate with scripts/update-tripsit.py; do not edit by hand.
+    // TRIPSIT-DATA-START (auto-generated)
+    const TRIPSIT = {"snapshot":"2026-07-08","pairs":{"ketamine|mdma":{"s":"Low Risk & Synergy","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of  this combination may be ill advised due to risk of physical injury."},"amphetamines|mdma":{"s":"Caution","n":"This combination of stimulants will increase strain on the heart, may cause some physical discomfort, and has the chance to cause cardiovascular issues. The anxiogenic and focusing effects of stimulants can increase the chance of unpleasant thought loops and make the experience more uncomfortable, this combination raises these chances. Amphetamines will increase the neurotoxic effects of MDMA, in addition to causing further concerns of hyperthermia due to the inherent nature of the combination. It will also raise one's body temperature, also likely making the combination more neurotoxic."},"mdma|mephedrone":{"s":"Dangerous","n":"Risk of serotonin syndrome as both drugs raise serotonin levels. Stimulants also increase the neurotoxic effects of MDMA, in addition to concerns of high blood pressure and unnecessary strain on the heart. As well as potentially causing anxiety and greater physical discomfort due to the combination."},"cocaine|mdma":{"s":"Caution","n":"Cocaine blocks some of the desirable effects of MDMA while increasing the risk of heart attack."},"ghb/gbl|mdma":{"s":"Caution","n":"Large amounts of GHB/GBL may overwhelm the effects of MDMA on the comedown."},"2c-x|mdma":{"s":"Low Risk & Synergy"},"lsd|mdma":{"s":"Low Risk & Synergy"},"mdma|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|mdma":{"s":"Low Risk & Synergy","n":"Large amounts of cannabis may cause strong and somewhat unpredictable experiences in combination with MDMA. Cannabis should be saved for towards the end of the experience if possible."},"alcohol|mdma":{"s":"Caution","n":"The combination of MDMA and alcohol may increase strain on the cardiovascular system and lead to increased alcohol consumption. MDMA may also impair one's ability to recognize their level of drunkenness, leading to increased alcohol consumption and poor decision-making. Alcohol may also increase the risk of dehydration and hyperthermia (increased body temperature) when combined with MDMA."},"benzodiazepines|mdma":{"s":"Low Risk & Decrease"},"mdma|opioids":{"s":"Low Risk & No Synergy"},"mdma|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"caffeine|mdma":{"s":"Caution","n":"Caffeine is not really necessary with MDMA and increases any neurotoxic effects from MDMA"},"mdma|nitrous":{"s":"Low Risk & Synergy"},"amphetamines|ketamine":{"s":"Caution","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of this combination may be ill advised due to risk of physical injury."},"cocaine|ketamine":{"s":"Caution","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of this combination may be ill advised due to risk of physical injury."},"ghb/gbl|ketamine":{"s":"Dangerous","n":"Both substances cause ataxia and bring a risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"2c-x|ketamine":{"s":"Low Risk & Synergy"},"ketamine|lsd":{"s":"Low Risk & Synergy"},"ketamine|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|ketamine":{"s":"Low Risk & Synergy"},"alcohol|ketamine":{"s":"Dangerous","n":"Both substances cause ataxia and bring a very high risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"benzodiazepines|ketamine":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position."},"ketamine|opioids":{"s":"Dangerous","n":"Both substances bring a risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"ketamine|tramadol":{"s":"Dangerous"},"caffeine|ketamine":{"s":"Low Risk & No Synergy","n":"No unexpected interactions."},"ketamine|nitrous":{"s":"Low Risk & Synergy"},"amphetamines|cocaine":{"s":"Caution","n":"This combination of stimulants will increase strain on the heart. It is not generally worth it as cocaine has a mild blocking effect on dopamine releasers like amphetamine"},"amphetamines|ghb/gbl":{"s":"Caution","n":"Stimulants increase respiration rate allowing for a higher dose of sedatives. If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"2c-x|amphetamines":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops. The combination is generally unnecessary because of the stimulating effects of psychedelics. Combination of the stimulating effects may be uncomfortable."},"amphetamines|lsd":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"amphetamines|mushrooms":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"amphetamines|cannabis":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"alcohol|amphetamines":{"s":"Caution","n":"Drinking on stimulants is risky because the sedative effects of the alcohol are reduced, and these are what the body uses to gauge drunkenness. This typically leads to excessive drinking with greatly reduced inhibitions, high risk of liver damage and increased dehydration. They will also allow you to drink past a point where you might normally pass out, increasing the risk. If you do decide to do this then you should set a limit of how much you will drink each hour and stick to it, bearing in mind that you will feel the alcohol and the stimulant less. Extended release formulations may severely impede sleep, further worsening the hangover."},"amphetamines|benzodiazepines":{"s":"Low Risk & Decrease","n":"Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction"},"amphetamines|opioids":{"s":"Caution","n":"Stimulants increase respiration rate, which can allow for a higher dose of opiates normal . If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"amphetamines|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"amphetamines|caffeine":{"s":"Caution","n":"This combination of stimulants is not generally necessary and may increase strain on the heart, as well as potentially causing anxiety and greater physical discomfort."},"amphetamines|nitrous":{"s":"Low Risk & Synergy"},"ghb/gbl|mephedrone":{"s":"Caution","n":"Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction. Both substances affect the heart and may lead to further dangerous heart complications at higher dosages. Additionally, the combination may increase the negative side effects of each other."},"lsd|mephedrone":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops, in addition to the possible negative side effects of coming down from said stimulant while on a psychedelic. In extreme cases, stimulants, especially in combination can result in severe vasoconstriction, tachycardia, hypertension, and heart failure."},"mephedrone|mushrooms":{"s":"Low Risk & Synergy","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"mephedrone|opioids":{"s":"Caution","n":"Stimulants increase respiration rate allowing a higher dose of opiates. If the stimulant wears off first then the opiate may overcome the patient and cause respiratory arrest."},"mephedrone|tramadol":{"s":"Dangerous","n":"There is a high risk of serotonin syndrome and seizures at recreational dosages. Both substances affect the heart and may lead to further dangerous heart complications at higher dosages. Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction. The combination may increase each other's side effects, such as dizziness and drowsiness. At higher dosages, the combination may increase each other’s side effects, such as delirium, mania, and psychosis."},"caffeine|mephedrone":{"s":"Caution","n":"This combination of stimulants is not generally necessary and may increase strain on the heart, as well as potentially causing anxiety and great physical discomfort. However, individual responses to caffeine can vary significantly, often influenced by factors like habitual versus occasional usage."},"cocaine|ghb/gbl":{"s":"Caution","n":"Stimulants increase respiration rate allowing for a higher dose of sedatives than normal. If the stimulant wears off first the opiate may overcome the individual and cause respiratory arrest. Likewise the ghb/gbl can wear off and leave a dangerous concentration of cocaine behind"},"2c-x|cocaine":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops. The combination is generally unnecessary because of the stimulating effects of psychedelics. Combination of the stimulating effects may be uncomfortable."},"cocaine|lsd":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"cocaine|mushrooms":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"cannabis|cocaine":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"alcohol|cocaine":{"s":"Unsafe","n":"Cocaine can decrease some of the intoxicating effects of alcohol, causing some people to drink more than they otherwise would, which leads to greater behavioral and physical health risks. There is also some debate about cocaethylene, a metabolite produced when combining alcohol and cocaine, with some researchers positing that it is more cardiotoxic than cocaine on its own. Use moderation when combining these substances."},"benzodiazepines|cocaine":{"s":"Low Risk & Decrease"},"cocaine|opioids":{"s":"Dangerous","n":"Stimulants increase respiration rate allowing for a higher dose of opiates than normal. If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"cocaine|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"caffeine|cocaine":{"s":"Caution","n":"Both stimulants, risk of tachycardia, hypertension, and in extreme cases heart failure."},"cocaine|nitrous":{"s":"Low Risk & Synergy"},"2c-x|ghb/gbl":{"s":"Low Risk & Decrease"},"ghb/gbl|lsd":{"s":"Low Risk & Decrease"},"ghb/gbl|mushrooms":{"s":"Low Risk & Decrease"},"cannabis|ghb/gbl":{"s":"Low Risk & Synergy"},"alcohol|ghb/gbl":{"s":"Dangerous","n":"Even in very low doses this combination rapidly leads to memory loss, severe ataxia and unconsciousness. There is a high risk of vomit aspiration while unconscious."},"benzodiazepines|ghb/gbl":{"s":"Dangerous","n":"The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position."},"ghb/gbl|opioids":{"s":"Dangerous","n":"The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position"},"ghb/gbl|tramadol":{"s":"Dangerous","n":"The sedative effects of this combination can lead to dangerous respiratory depression."},"caffeine|ghb/gbl":{"s":"Low Risk & No Synergy"},"ghb/gbl|nitrous":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"2c-x|lsd":{"s":"Low Risk & Synergy"},"2c-x|mushrooms":{"s":"Low Risk & Synergy"},"2c-x|cannabis":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"2c-x|alcohol":{"s":"Low Risk & Decrease"},"2c-x|benzodiazepines":{"s":"Low Risk & Decrease"},"2c-x|opioids":{"s":"Low Risk & No Synergy"},"2c-x|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics raise the risk of seizures."},"2c-x|caffeine":{"s":"Low Risk & No Synergy","n":"High doses of caffeine may cause anxiety which is less manageable when tripping, and since both are stimulating the combination may cause some physical discomfort."},"2c-x|nitrous":{"s":"Low Risk & Synergy"},"lsd|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|lsd":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"alcohol|lsd":{"s":"Low Risk & Decrease"},"benzodiazepines|lsd":{"s":"Low Risk & Decrease"},"lsd|opioids":{"s":"Low Risk & No Synergy"},"lsd|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics also cause occasional seizures."},"caffeine|lsd":{"s":"Low Risk & No Synergy"},"lsd|nitrous":{"s":"Low Risk & Synergy"},"cannabis|mushrooms":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"alcohol|mushrooms":{"s":"Low Risk & Decrease"},"benzodiazepines|mushrooms":{"s":"Low Risk & Decrease"},"mushrooms|opioids":{"s":"Low Risk & No Synergy"},"mushrooms|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics also cause occasional seizures."},"caffeine|mushrooms":{"s":"Low Risk & No Synergy"},"mushrooms|nitrous":{"s":"Low Risk & Synergy"},"alcohol|cannabis":{"s":"Low Risk & Synergy","n":"In excess, this combination can cause nausea."},"benzodiazepines|cannabis":{"s":"Low Risk & Decrease"},"cannabis|opioids":{"s":"Low Risk & Synergy"},"cannabis|tramadol":{"s":"Low Risk & Synergy"},"caffeine|cannabis":{"s":"Low Risk & No Synergy"},"cannabis|nitrous":{"s":"Low Risk & Synergy"},"alcohol|benzodiazepines":{"s":"Dangerous","n":"Ethanol ingestion may potentiate the CNS effects of many benzodiazepines. The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Blacking out and memory loss is almost certain."},"alcohol|opioids":{"s":"Dangerous","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. Place the affected individual in the recovery position to prevent vomit aspiration from excess. Memory blackouts are likely"},"alcohol|tramadol":{"s":"Dangerous","n":"Heavy CNS depressants, risk of seizures. Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. Place the affected individual in the recovery position to prevent vomit aspiration from excess. Memory blackouts are likely."},"alcohol|caffeine":{"s":"Low Risk & No Synergy"},"alcohol|nitrous":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"benzodiazepines|opioids":{"s":"Dangerous","n":"Central nervous system and/or respiratory-depressant effects may be additively or synergistically present. The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position Blackouts/memory loss likely"},"benzodiazepines|tramadol":{"s":"Dangerous","n":"Central nervous system- and/or respiratory-depressant effects may be additively or synergistically present. Vomit aspiration is a risk when passed out, lay down in recovery position if ingested."},"benzodiazepines|caffeine":{"s":"Low Risk & Decrease"},"benzodiazepines|nitrous":{"s":"Low Risk & Decrease"},"opioids|tramadol":{"s":"Dangerous","n":"Concomitant use of tramadol increases the seizure risk in individuals taking other opioids. These agents are often individually epileptogenic and may have additive effects on seizure threshold during coadministration. Central nervous system- and/or respiratory-depressant effects may be additively or synergistically present"},"caffeine|opioids":{"s":"Low Risk & No Synergy"},"nitrous|opioids":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"caffeine|tramadol":{"s":"Low Risk & No Synergy"},"nitrous|tramadol":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"caffeine|nitrous":{"s":"Low Risk & No Synergy"}},"names":{"2cb":"2c-x","bees":"2c-x","nexus":"2c-x","2cban":"2c-x","2cbfly":"2c-x","2cbflynbome":"2c-x","2cc":"2c-x","2cd":"2c-x","2cm":"2c-x","2ce":"2c-x","2cg":"2c-x","2cg5":"2c-x","2ci":"2c-x","2cip":"2c-x","2cn":"2c-x","2cp":"2c-x","2ct":"2c-x","2ct2":"2c-x","2ct4":"2c-x","2ct7":"2c-x","2ct21":"2c-x","3ohphenazepam":"benzodiazepines","3hophenazepam":"benzodiazepines","3hop":"benzodiazepines","3ohp":"benzodiazepines","3hydroxyphenazepam":"benzodiazepines","4meobutryfentanyl":"opioids","4meobutyrfentanyl":"opioids","4meobf":"opioids","6mddm":"opioids","6methylenedihydrodesoxymorphine":"opioids","acetylfentanyl":"opioids","af":"opioids","acrylfentanyl":"opioids","ah7921":"opioids","alcohol":"alcohol","etoh":"alcohol","beer":"alcohol","ethanol":"alcohol","booze":"alcohol","hooch":"alcohol","alprazolam":"benzodiazepines","xanax":"benzodiazepines","prazolam":"benzodiazepines","ksalol":"benzodiazepines","niravam":"benzodiazepines","amphetamine":"amphetamines","speed":"amphetamines","pepp":"amphetamines","amphetamines":"amphetamines","amphetamin":"amphetamines","amfetamine":"amphetamines","amph":"amphetamines","hearts":"amphetamines","pep":"amphetamines","bentazepam":"benzodiazepines","thiadipone":"benzodiazepines","tiadipona":"benzodiazepines","benzodioxolefentanyl":"opioids","bromadol":"opioids","bdpc":"opioids","bromazepam":"benzodiazepines","lectopam":"benzodiazepines","lexilium":"benzodiazepines","lexotan":"benzodiazepines","brazepam":"benzodiazepines","lexotanil":"benzodiazepines","bromazolam":"benzodiazepines","xli268":"benzodiazepines","brotizolam":"benzodiazepines","lendormin":"benzodiazepines","buprenorphine":"opioids","suboxone":"opioids","subs":"opioids","bupe":"opioids","butyrfentanyl":"opioids","bf":"opioids","caffeine":"caffeine","coffee":"caffeine","camazepam":"benzodiazepines","albego":"benzodiazepines","limpidon":"benzodiazepines","paxor":"benzodiazepines","cannabis":"cannabis","weed":"cannabis","thc":"cannabis","marijuana":"cannabis","dagga":"cannabis","hash":"cannabis","clobazam":"benzodiazepines","frisium":"benzodiazepines","clonazepam":"benzodiazepines","klonopin":"benzodiazepines","kpin":"benzodiazepines","clonazolam":"benzodiazepines","clam":"benzodiazepines","cloniprazepam":"benzodiazepines","clonitazene":"opioids","clorazepate":"benzodiazepines","tranxene":"benzodiazepines","novoclopate":"benzodiazepines","tranzene":"benzodiazepines","clotiazepam":"benzodiazepines","clozan":"benzodiazepines","distensan":"benzodiazepines","trecalmo":"benzodiazepines","rize":"benzodiazepines","rizen":"benzodiazepines","veratran":"benzodiazepines","cocaine":"cocaine","coke":"cocaine","codeine":"opioids","cyclopentylfentanyl":"opioids","cpf":"opioids","delorazepam":"benzodiazepines","nordiclazepam":"benzodiazepines","demerol":"opioids","pethidine":"opioids","meperidine":"opioids","deschloroetizolam":"benzodiazepines","etizolam2":"benzodiazepines","desmethylflunitrazepam":"benzodiazepines","fonazepam":"benzodiazepines","ro054435":"benzodiazepines","norflunitrazepam":"benzodiazepines","dextropropoxyphene":"opioids","darvocet":"opioids","coproxamol":"opioids","capadex":"opioids","digesic":"opioids","diazepam":"benzodiazepines","valium":"benzodiazepines","diclazepam":"benzodiazepines","dihydrocodeine":"opioids","dhc":"opioids","dipipanone":"opioids","diconal":"opioids","estazolam":"benzodiazepines","prosom":"benzodiazepines","eurodin":"benzodiazepines","elprazolam":"benzodiazepines","ethylmorphine":"opioids","etizolam":"benzodiazepines","etiz":"benzodiazepines","etizest":"benzodiazepines","etilaam":"benzodiazepines","sedekopan":"benzodiazepines","depas":"benzodiazepines","etizola":"benzodiazepines","inxity":"benzodiazepines","zoly":"benzodiazepines","lamet":"benzodiazepines","towa":"benzodiazepines","fentanyl":"opioids","fent":"opioids","flualprazolam":"benzodiazepines","flubromazepam":"benzodiazepines","flubromazolam":"benzodiazepines","flam":"benzodiazepines","fluclotizolam":"benzodiazepines","flunitrazepam":"benzodiazepines","roofies":"benzodiazepines","rohypnol":"benzodiazepines","flunitrazolam":"benzodiazepines","fln":"benzodiazepines","flurazepam":"benzodiazepines","dalmane":"benzodiazepines","flutazolam":"benzodiazepines","flutoprazepam":"benzodiazepines","restas":"benzodiazepines","furanylfentanyl":"opioids","fuf":"opioids","gbl":"ghb/gbl","ghb":"ghb/gbl","glaucine":"opioids","halazepam":"benzodiazepines","paxipam":"benzodiazepines","heroin":"opioids","diamorphine":"opioids","hydrocodone":"opioids","vicodin":"opioids","hydro":"opioids","hydromorphone":"opioids","dilaudid":"opioids","diluadid":"opioids","ibogaine":"opioids","iboga":"opioids","ic26":"opioids","methiodone":"opioids","isomethadone":"opioids","ketamine":"ketamine","k":"ketamine","ket":"ketamine","kitty":"ketamine","kittens":"ketamine","specialk":"ketamine","ketobemidone":"opioids","kbd":"opioids","kratom":"opioids","librium":"benzodiazepines","chlordiazepoxide":"benzodiazepines","lorazepam":"benzodiazepines","ativan":"benzodiazepines","lormetazepam":"benzodiazepines","noctamid":"benzodiazepines","lsd":"lsd","lsd25":"lsd","acid":"lsd","cid":"lsd","lucy":"lsd","mdma":"mdma","molly":"mdma","ecstasy":"mdma","adam":"mdma","xtc":"mdma","mandy":"mdma","x":"mdma","md":"mdma","meclonazepam":"benzodiazepines","medazepam":"benzodiazepines","nobrium":"benzodiazepines","azepamid":"benzodiazepines","rudotel":"benzodiazepines","raporan":"benzodiazepines","mezapam":"benzodiazepines","talis":"benzodiazepines","mephedrone":"mephedrone","4mmc":"mephedrone","meowmeow":"mephedrone","mcat":"mephedrone","4methylmethcathinone":"mephedrone","methadone":"opioids","methoxyacetylfentanyl":"opioids","maf":"opioids","desfluoroocfentanil":"opioids","metizolam":"benzodiazepines","metiz":"benzodiazepines","desmethyletizolam":"benzodiazepines","midazolam":"benzodiazepines","morpheridine":"opioids","morphine":"opioids","mt45":"opioids","ic6":"opioids","mushrooms":"mushrooms","psilocybin":"mushrooms","shrooms":"mushrooms","mushroom":"mushrooms","psylocybin":"mushrooms","nicomorphine":"opioids","nifoxipam":"benzodiazepines","nimetazepam":"benzodiazepines","erimin":"benzodiazepines","nitemazepam":"benzodiazepines","3hydroxynimetazepam":"benzodiazepines","nitrazepam":"benzodiazepines","mogadon":"benzodiazepines","baronite":"benzodiazepines","dormin":"benzodiazepines","dreem":"benzodiazepines","enzed":"benzodiazepines","gentravit":"benzodiazepines","hypnonex":"benzodiazepines","hypnoril":"benzodiazepines","hypnotex":"benzodiazepines","konit":"benzodiazepines","nicare":"benzodiazepines","nigap":"benzodiazepines","nipam":"benzodiazepines","nirosun":"benzodiazepines","nitavan":"benzodiazepines","nithra":"benzodiazepines","nitrazolam":"benzodiazepines","nitrous":"nitrous","n2o":"nitrous","laughinggas":"nitrous","n20":"nitrous","nos":"nitrous","nitrousoxide":"nitrous","hippycrack":"nitrous","nordazepam":"benzodiazepines","nordaz":"benzodiazepines","nordiazepam":"benzodiazepines","desmethyldiazepam":"benzodiazepines","norflurazepam":"benzodiazepines","ndesalkylflurazepam":"benzodiazepines","odesmethyltramadol":"opioids","odt":"opioids","osmt":"opioids","odsmt":"opioids","opium":"opioids","o":"opioids","oxazepam":"benzodiazepines","serax":"benzodiazepines","oxycodone":"opioids","oxy":"opioids","oxycontin":"opioids","percocet":"opioids","oxynorm":"opioids","oxymorphone":"opioids","opana":"opioids","stopsigns":"opioids","palfium":"opioids","dextromoramide":"opioids","parafluorobutyrfentanyl":"opioids","4fluorobutyrfentanyl":"opioids","pfbf":"opioids","4fbf":"opioids","parafluorofentanyl":"opioids","pff":"opioids","4fluorofentanyl":"opioids","pentazocine":"opioids","talwin":"opioids","phenazepam":"benzodiazepines","pinazepam":"benzodiazepines","domar":"benzodiazepines","prazepam":"benzodiazepines","centrac":"benzodiazepines","centrax":"benzodiazepines","demetrin":"benzodiazepines","lysanxia":"benzodiazepines","pozapam":"benzodiazepines","prasepine":"benzodiazepines","prazene":"benzodiazepines","reapam":"benzodiazepines","trepidan":"benzodiazepines","propoxyphene":"opioids","pst":"opioids","poppyseedtea":"opioids","poppytea":"opioids","pyrazolam":"benzodiazepines","quazepam":"benzodiazepines","doral":"benzodiazepines","rilmazafone":"benzodiazepines","rhythmy":"benzodiazepines","sufentanil":"opioids","tapentadol":"opioids","temazepam":"benzodiazepines","restoril":"benzodiazepines","tetrahydrofuranfentanyl":"opioids","thff":"opioids","tetrazepam":"benzodiazepines","tianeptine":"opioids","tilidine":"opioids","tilidate":"opioids","tilidin":"opioids","valoron":"opioids","valtran":"opioids","tramadol":"tramadol","tram":"tramadol","triazolam":"benzodiazepines","halcion":"benzodiazepines","u47700":"opioids","u49900":"opioids","u51754":"opioids","metheneu47700":"opioids","valerylfentanyl":"opioids","vf":"opioids","w15":"opioids","zolazepam":"benzodiazepines"}};
+    // TRIPSIT-DATA-END
+
+    // Combination-picker groups. Tramadol stays separate because TripSit
+    // rates it separately from other opioids.
+    const COMBO_GROUPS = [
+      ...PRESETS.filter(p => p.ts).map(p => ({ id: p.ts, label: p.name, color: p.color, blend: p.blend })),
+      { id: 'benzodiazepines', label: 'Benzos',   color: '#8da2c0' },
+      { id: 'opioids',         label: 'Opioids',  color: '#b8a58f' },
+      { id: 'tramadol',        label: 'Tramadol', color: '#c9a3a3' },
+      { id: 'caffeine',        label: 'Caffeine', color: '#a2845e' },
+      { id: 'nitrous',         label: 'Nitrous',  color: '#d8dee6' }
+    ];
+    const comboGroupById = (id) => COMBO_GROUPS.find(g => g.id === id);
+    // TripSit's six verdicts, worst first, with chart-like colours
+    const TRIPSIT_STATUS = {
+      'Dangerous':             { rank: 0, color: '#ef6e66' },
+      'Unsafe':                { rank: 1, color: '#f0883e' },
+      'Caution':               { rank: 2, color: '#e3c04b' },
+      'Low Risk & Decrease':   { rank: 3, color: '#9fb0bf' },
+      'Low Risk & No Synergy': { rank: 4, color: '#86b7e0' },
+      'Low Risk & Synergy':    { rank: 5, color: '#68d391' }
+    };
+    const normTripsit = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Which chart column a logged name belongs to, if any: presets know
+    // theirs; everything else goes through TripSit's own alias table.
+    function tripsitGroupFor(name) {
+      const p = findPresetLoose(name);
+      if (p) return p.ts || null;
+      return TRIPSIT.names[normTripsit(name)] || null;
+    }
+    // TripSit's aliases grouped per preset ("adam"/"molly" → MDMA), used as
+    // the weaker second signal when ranking the preset chips while typing.
+    const PRESET_ALIASES = new Map(PRESETS.filter(p => p.ts).map(p => [p.ts, []]));
+    for (const [alias, group] of Object.entries(TRIPSIT.names)) {
+      const list = PRESET_ALIASES.get(group);
+      if (list) list.push(alias);
+    }
+
+    // Inline SVG icons keep rendering consistent and offline.
+    const ICONS = {
+      pencil: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
+      info:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M12 11.2v5"/><path d="M12 7.6h.01"/></svg>',
+      check:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+      x:      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+      repeat: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+    };
+
+    // Builds the small icon buttons used all over the UI.
+    function iconBtn(className, title, ariaLabel, svg) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = className;
+      if (title) b.title = title;
+      if (ariaLabel) b.setAttribute('aria-label', ariaLabel);
+      b.innerHTML = svg;
+      return b;
+    }
+
+    // The unit dropdowns (dose row + log editor) share one option list.
+    function makeUnitSelect(value) {
+      const sel = document.createElement('select');
+      for (const u of UNIT_OPTIONS) {
+        const opt = document.createElement('option');
+        opt.value = u.value; opt.textContent = u.label;
+        sel.appendChild(opt);
+      }
+      sel.value = value;
+      return sel;
+    }
+
+    // --- State ---
+    // IMPORTANT: the storage key stays the same so existing data keeps working.
+    // The shape is now { drugs, entries }; any old `history` is dropped on load.
+    const initialState = { drugs: [], entries: [] };
+    const STORAGE_KEY = 'med_tracker_v2_state';
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(initialState);
+        const parsed = JSON.parse(raw);
+        parsed.entries?.forEach(e => e.ts = new Date(e.ts));
+        if (!Array.isArray(parsed.drugs)) parsed.drugs = [];
+        if (!Array.isArray(parsed.entries)) parsed.entries = [];
+        delete parsed.history; // history was removed; discard any leftover from older versions
+        parsed.drugs.forEach((d, i) => {
+          if (!d.color) d.color = palette[i % palette.length];
+          // Follow-along for the 2026-07-08 repaint: a card still wearing a
+          // preset's OLD signature colour moves to the new one. Hand-picked
+          // colours don't match the old defaults, so they stay as they are.
+          if (d.color === OLD_PRESET_COLORS[nameKey(d.name)]) {
+            const p = findPreset(d.name);
+            if (p) d.color = p.color;
+          }
+          if (typeof d.expanded === 'undefined') d.expanded = false; // Default to collapsed
+        });
+        return parsed;
+      } catch (e) {
+        console.error('State load failed:', e);
+        // Data is irreplaceable: keep the unreadable copy under a backup key
+        // so the next save can't destroy it, and say so once the UI is up.
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) localStorage.setItem(STORAGE_KEY + '_backup', raw);
+        } catch {}
+        stateLoadFailed = true;
+        return structuredClone(initialState);
+      }
+    }
+
+    let stateLoadFailed = false;
+    let state = loadState();
+    function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {} }
+
+    function lastDoseDate(drugId) {
+      let latest = null;
+      for (const e of state.entries) {
+        if (e.drugId !== drugId) continue;
+        if (!latest || e.ts > latest) latest = e.ts;
+      }
+      return latest;
+    }
+
+    function getLastEntry(drugId) {
+      let latestEntry = null;
+      for (const e of state.entries) {
+        if (e.drugId !== drugId) continue;
+        if (!latestEntry || e.ts > latestEntry.ts) latestEntry = e;
+      }
+      return latestEntry;
+    }
+
+    // --- UI Controls ---
+    const snackbar = $('#snackbar');
+    const snackbarMsg = $('#snackbar-msg');
+    const snackbarAction = $('#snackbar-action');
+    let toastTimer = null;
+    let toastActionFn = null;
+    // Optional Undo action for immediate, reversible deletions.
+    function showToast(message, duration=2500, actionLabel=null, onAction=null) {
+      if (toastTimer) clearTimeout(toastTimer);
+      snackbarMsg.textContent = message;
+      toastActionFn = (actionLabel && onAction) ? onAction : null;
+      if (toastActionFn) { snackbarAction.textContent = actionLabel; snackbarAction.hidden = false; }
+      else { snackbarAction.hidden = true; }
+      snackbar.classList.add('show');
+      toastTimer = setTimeout(hideToast, duration);
+    }
+    function hideToast() {
+      if (toastTimer) clearTimeout(toastTimer);
+      snackbar.classList.remove('show');
+      toastTimer = null; toastActionFn = null;
+    }
+    snackbarAction.addEventListener('click', () => {
+      const fn = toastActionFn;
+      hideToast();
+      if (fn) fn();
+    });
+
+    // =====================================================================
+    // Shared dialog behaviour. Every overlay dialog opens and closes the
+    // same way: tap outside or press Escape to close, Tab stays inside the
+    // dialog, and focus returns to where it was before opening.
+    // =====================================================================
+    function setupModal(overlay, onClose) {
+      let lastFocused = null;
+      function open(focusEl) {
+        lastFocused = document.activeElement;
+        overlay.style.display = 'flex';
+        overlay.classList.add('show');
+        if (focusEl) focusEl.focus({ preventScroll: true });
+      }
+      function close() {
+        overlay.classList.remove('show');
+        overlay.style.display = 'none';
+        if (onClose) onClose();
+        if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+      }
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+      document.addEventListener('keydown', (e) => {
+        if (!overlay.classList.contains('show')) return;
+        if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+        if (e.key === 'Tab') {
+          const items = [...overlay.querySelectorAll('button, [href], input, select, textarea')]
+            .filter(el => !el.hidden && !el.disabled && el.offsetParent !== null);
+          if (!items.length) return;
+          const first = items[0], last = items[items.length - 1];
+          if (!overlay.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+          else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
+      return { open, close };
+    }
+
+    // Confirmation modal
+    const confirmMsg = $('#confirm-msg');
+    const btnYes = $('#confirm-yes');
+    const btnNo = $('#confirm-no');
+    let confirmResolver = null;
+    let confirmResult = false; // closing any other way counts as "No"
+    const confirmModal = setupModal($('#confirm'), () => {
+      if (typeof confirmResolver === 'function') { const r = confirmResolver; confirmResolver = null; r(confirmResult); }
+    });
+    function openConfirm(message) {
+      confirmMsg.textContent = message;
+      confirmResult = false;
+      confirmModal.open(btnNo);
+      return new Promise((resolve) => { confirmResolver = resolve; });
+    }
+    function closeConfirm(result=false) { confirmResult = result; confirmModal.close(); }
+    btnYes.addEventListener('click', () => closeConfirm(true));
+    btnNo.addEventListener('click', () => closeConfirm(false));
+
+    // --- Substance-info dialog (the ⓘ on preset cards) ---
+    // Names PsychonautWiki before opening any external link.
+    const wikiOpenLink = $('#wiki-open');
+    const wikiModal = setupModal($('#wiki'));
+    function openWikiDialog(preset) {
+      // "Speed (Amphetamine)" when the article is named differently
+      $('#wiki-name').textContent = preset.wiki ? `${preset.name} (${preset.wiki})` : preset.name;
+      $('#wiki-dot').style.background = preset.blend ? blendDotCss(preset.blend) : preset.color;
+      wikiOpenLink.href = presetWikiUrl(preset);
+      wikiModal.open($('#wiki-cancel'));
+    }
+    $('#wiki-cancel').addEventListener('click', wikiModal.close);
+    wikiOpenLink.addEventListener('click', () => wikiModal.close()); // link still opens; the dialog just tidies up
+
+    // --- Combination checker ---
+    // User-initiated only: select substances, then show TripSit's text.
+    const comboOverlay = $('#combo');
+    const comboModal = setupModal(comboOverlay);
+    const comboChipsEl = $('#combo-chips');
+    const comboMatched = $('#combo-matched');
+    const comboUnmatched = $('#combo-unmatched');
+    const comboShowBtn = $('#combo-show');
+    const comboPicker = $('#combo-picker');
+    const comboResults = $('#combo-results');
+    const comboList = $('#combo-list');
+    let comboSelected = new Set();
+
+    // A pair needs two sides — until then the button says why it's waiting
+    function comboUpdateShow() {
+      comboShowBtn.disabled = comboSelected.size < 2;
+      comboShowBtn.textContent = comboSelected.size < 2
+        ? 'Select at least two'
+        : "Show TripSit's ratings";
+    }
+
+    function renderComboChips() {
+      comboChipsEl.innerHTML = '';
+      for (const g of COMBO_GROUPS) {
+        const sel = comboSelected.has(g.id);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'combo-chip' + (sel ? ' sel' : '');
+        chip.setAttribute('aria-pressed', String(sel));
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = g.blend ? blendDotCss(g.blend) : g.color;
+        chip.appendChild(dot);
+        chip.appendChild(document.createTextNode(g.label));
+        const tick = document.createElement('span');
+        tick.className = 'tick';
+        tick.textContent = '✓';
+        chip.appendChild(tick);
+        chip.addEventListener('click', () => {
+          if (comboSelected.has(g.id)) comboSelected.delete(g.id);
+          else comboSelected.add(g.id);
+          renderComboChips();
+          comboUpdateShow();
+        });
+        comboChipsEl.appendChild(chip);
+      }
+    }
+
+    function openCombo() {
+      // Distinct logged substances, using current card names when available.
+      const seen = new Map();
+      for (const e of state.entries) {
+        const card = state.drugs.find(d => d.id === e.drugId);
+        const name = (card && card.name) || e.drugNameAtEntry || '';
+        if (!name || seen.has(nameKey(name))) continue;
+        seen.set(nameKey(name), { name, group: tripsitGroupFor(name) });
+      }
+      comboSelected = new Set();
+      const matchedBits = [], unmatchedBits = [];
+      for (const { name, group } of seen.values()) {
+        if (group) {
+          comboSelected.add(group);
+          const label = comboGroupById(group).label;
+          // "✓ Xanax → Benzos" when the logged name isn't the group's own
+          matchedBits.push(nameKey(label) === nameKey(name) ? `✓ ${label}` : `✓ ${name} → ${label}`);
+        } else {
+          unmatchedBits.push(`“${name}”`);
+        }
+      }
+      comboMatched.hidden = !matchedBits.length;
+      comboMatched.textContent = `From tonight's log: ${matchedBits.join('   ')}`;
+      comboUnmatched.hidden = !unmatchedBits.length;
+      comboUnmatched.textContent = `Not on TripSit's chart: ${unmatchedBits.join(', ')} — not included.`;
+      renderComboChips();
+      comboUpdateShow();
+      comboPicker.hidden = false;
+      comboResults.hidden = true;
+      $('#combo-snapshot').textContent = TRIPSIT.snapshot;
+      comboModal.open($('#combo-close'));
+    }
+
+    function renderComboResults() {
+      const ids = [...comboSelected];
+      const rows = [];
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          rows.push({
+            a: comboGroupById(ids[i]).label,
+            b: comboGroupById(ids[j]).label,
+            data: TRIPSIT.pairs[[ids[i], ids[j]].sort().join('|')]
+          });
+        }
+      }
+      // TripSit's own severity order, worst first; unrated pairs last
+      const rank = (r) => (r.data && TRIPSIT_STATUS[r.data.s]) ? TRIPSIT_STATUS[r.data.s].rank : 6;
+      rows.sort((r1, r2) => rank(r1) - rank(r2));
+      comboList.innerHTML = '';
+      for (const r of rows) {
+        const row = document.createElement('div');
+        row.className = 'combo-row';
+        const st = r.data && TRIPSIT_STATUS[r.data.s];
+        if (st) row.style.setProperty('--st', st.color);
+        const head = document.createElement('div');
+        head.className = 'combo-row-head';
+        const pair = document.createElement('span');
+        pair.className = 'combo-pair';
+        pair.textContent = `${r.a} + ${r.b}`;
+        const status = document.createElement('span');
+        status.className = 'combo-status';
+        status.textContent = r.data ? r.data.s : "No rating on TripSit's chart";
+        head.appendChild(pair);
+        head.appendChild(status);
+        row.appendChild(head);
+        if (r.data && r.data.n) {
+          const note = document.createElement('p');
+          note.className = 'combo-tsnote';
+          note.textContent = r.data.n; // TripSit's note, word for word
+          row.appendChild(note);
+        }
+        comboList.appendChild(row);
+      }
+      comboPicker.hidden = true;
+      comboResults.hidden = false;
+      comboOverlay.querySelector('.modal').scrollTop = 0;
+    }
+
+    $('#combo-open').addEventListener('click', openCombo);
+    $('#combo-close').addEventListener('click', comboModal.close);
+    $('#combo-back').addEventListener('click', () => { comboPicker.hidden = false; comboResults.hidden = true; });
+    comboShowBtn.addEventListener('click', () => { if (comboSelected.size >= 2) renderComboResults(); });
+    // Enter answers "Yes" in the confirm dialog (Escape/outside already mean "No")
+    document.addEventListener('keydown', (e) => {
+      if ($('#confirm').classList.contains('show') && e.key === 'Enter') { e.preventDefault(); closeConfirm(true); }
+    });
+
+    // --- In-app number pad ---
+    // Custom pad avoids the phone keypad and can be opened programmatically.
+    const numpad = $('#numpad');
+    const numpadActionBtn = $('#numpad-action');
+    let padTarget = null;   // the input being typed into
+    let padAction = null;   // what the big bottom key does
+
+    // Taps on the pad must not steal focus from the input it types into
+    numpad.addEventListener('pointerdown', (e) => e.preventDefault());
+
+    function openNumpad(input, actionLabel, onAction) {
+      padTarget = input;
+      padAction = onAction;
+      numpadActionBtn.textContent = actionLabel;
+      numpad.classList.add('show');
+      document.body.classList.add('numpad-open');
+      // Add bottom room first, then scroll the field above the pad.
+      setTimeout(() => {
+        const r = input.getBoundingClientRect();
+        const padTop = window.innerHeight - numpad.offsetHeight;
+        const clearance = 90; // field ends up this far above the pad
+        if (r.bottom > padTop - 16) {
+          window.scrollBy({ top: r.bottom - (padTop - clearance), behavior: 'smooth' });
+        }
+      }, 80);
+    }
+
+    function closeNumpad() {
+      const t = padTarget;
+      padTarget = null;
+      padAction = null;
+      numpad.classList.remove('show');
+      document.body.classList.remove('numpad-open');
+      if (t && document.activeElement === t) t.blur();
+    }
+
+    numpad.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-key]');
+      if (!btn || !padTarget) return;
+      const k = btn.dataset.key;
+      if (k === 'action') { const fn = padAction; closeNumpad(); if (fn) fn(); return; }
+      if (k === 'back') padTarget.value = padTarget.value.slice(0, -1);
+      else if (k === '.') { if (!/[.,]/.test(padTarget.value)) padTarget.value += '.'; }
+      else padTarget.value += k;
+    });
+
+    // Tapping anywhere else puts the pad away
+    document.addEventListener('pointerdown', (e) => {
+      if (padTarget && !numpad.contains(e.target) && e.target !== padTarget) closeNumpad();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (padTarget && e.key === 'Escape') closeNumpad();
+    });
+
+    // Makes an amount field use the in-app pad instead of the system keyboard
+    function useNumpad(input, actionLabel, onAction) {
+      input.setAttribute('inputmode', 'none'); // keeps the system keyboard closed
+      input.addEventListener('focus', () => openNumpad(input, actionLabel, onAction));
+      input.addEventListener('blur', () => { if (padTarget === input) closeNumpad(); });
+    }
+
+    // Reset Everything Button
+    $('#reset-all').addEventListener('click', async () => {
+      const ok = await openConfirm('This will permanently delete all substances and log entries. Proceed?');
+      if (ok) {
+        state = structuredClone(initialState);
+        saveState();
+        render();
+        showToast('Everything reset.');
+      }
+    });
+
+    // --- Share with a Friend ---
+    // Builds a local image preview, then shares or downloads it.
+    const sharePreviewImg = $('#share-preview-img');
+    let shareFile = null; // the image waiting in the preview
+    const sharePreviewModal = setupModal($('#share-preview'), () => {
+      if (sharePreviewImg.src) { URL.revokeObjectURL(sharePreviewImg.src); sharePreviewImg.removeAttribute('src'); }
+      shareFile = null;
+    });
+
+    $('#share-log').addEventListener('click', async () => {
+      if (!state.entries.length) { showToast('Nothing to share yet — the log is empty.'); return; }
+      try {
+        const canvas = drawShareCard();
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        if (!blob) { showToast('Could not create the image.'); return; }
+        shareFile = new File([blob], 'dose-log.png', { type: 'image/png' });
+        sharePreviewImg.src = URL.createObjectURL(blob);
+        sharePreviewModal.open($('#share-send'));
+      } catch (err) {
+        console.error('Share failed:', err);
+        showToast('Sharing failed — please try again.');
+      }
+    });
+
+    $('#share-cancel').addEventListener('click', sharePreviewModal.close);
+
+    $('#share-send').addEventListener('click', async () => {
+      const file = shareFile;
+      if (!file) return;
+      sharePreviewModal.close();
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+        } catch (err) {
+          // User closed the share sheet — that's fine, do nothing
+          if (err && err.name !== 'AbortError') downloadShareImage(file);
+        }
+      } else {
+        downloadShareImage(file);
+        showToast('Image saved — send it however you like.');
+      }
+    });
+
+    function downloadShareImage(blob) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `dose-log-${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    // Shortens text with an ellipsis so long drug names can't break the layout
+    function ellipsize(ctx, text, maxW) {
+      if (ctx.measureText(text).width <= maxW) return text;
+      let t = text;
+      while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+      return t + '…';
+    }
+
+    // Small capsule emblem (matches the app icon) for the image header
+    function drawCapsuleGlyph(ctx, cx, cy, h, teal) {
+      const w = h * 0.46, r = w / 2;
+      const capsulePath = () => {
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, -h / 2 + r);
+        ctx.arc(0, -h / 2 + r, r, Math.PI, 0);
+        ctx.lineTo(w / 2, h / 2 - r);
+        ctx.arc(0, h / 2 - r, r, 0, Math.PI);
+        ctx.closePath();
+      };
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((28 * Math.PI) / 180);
+      capsulePath();
+      ctx.fillStyle = '#e9ecf2';
+      ctx.fill();
+      ctx.save();
+      capsulePath();
+      ctx.clip();
+      ctx.fillStyle = teal;
+      ctx.fillRect(-w / 2, 0, w, h / 2);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    function drawShareCard() {
+      // Pull colours from the live theme so the image always matches the app
+      const rootStyle = getComputedStyle(document.documentElement);
+      const themeVar = (name, fallback) => (rootStyle.getPropertyValue(name) || '').trim() || fallback;
+      const COL = {
+        bg: themeVar('--bg', '#0f1216'),
+        text: themeVar('--text', '#e9ecf2'),
+        muted: themeVar('--muted', '#a6aebd'),
+        accent: themeVar('--accent-strong', '#74dcc6'),
+        line: 'rgba(255,255,255,0.08)'
+      };
+      const font = (weight, size) => `${weight} ${size}px -apple-system, system-ui, "Segoe UI", Roboto, sans-serif`;
+
+      // Same grouping as the on-screen log: by day, newest first
+      const entries = [...state.entries].sort((a, b) => b.ts - a.ts);
+      const groups = {};
+      for (const e of entries) { const k = dayKey(e.ts); if (!groups[k]) groups[k] = []; groups[k].push(e); }
+      const days = Object.keys(groups).sort((a, b) => (a < b ? 1 : -1));
+
+      // Totals per drug, ordered by first appearance in the log.
+      const totalDrugs = [];
+      const seenDrugIds = new Set();
+      for (const e of entries) {
+        if (seenDrugIds.has(e.drugId)) continue;
+        seenDrugIds.add(e.drugId);
+        totalDrugs.push({
+          name: lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug',
+          color: colorForEntry(e) || '#56c1ab',
+          label: totalsForDrugLabel(e.drugId)
+        });
+      }
+
+      // Layout maths (logical pixels; drawn at 2x for sharpness)
+      const W = 440, PAD = 26, HEADER_H = 64, DAY_H = 34, ROW_H = 40, DAY_GAP = 8;
+      let H = PAD + HEADER_H;
+      for (const dk of days) H += DAY_H + groups[dk].length * ROW_H + DAY_GAP;
+      H += DAY_H + totalDrugs.length * ROW_H + PAD;
+
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.textBaseline = 'middle';
+
+      // Background
+      ctx.fillStyle = COL.bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Header: capsule emblem, title, and when this snapshot was shared
+      drawCapsuleGlyph(ctx, PAD + 11, PAD + 19, 26, themeVar('--accent', '#56c1ab'));
+      ctx.fillStyle = COL.text;
+      ctx.font = font(700, 19);
+      ctx.fillText('DoseLog', PAD + 32, PAD + 10);
+      ctx.fillStyle = COL.muted;
+      ctx.font = font(400, 12.5);
+      ctx.fillText(`Dose log — shared ${dateLabel(new Date())} ${timeStr(new Date())}`, PAD + 32, PAD + 30);
+
+      // Right-hand column: times. Measure the widest so doses align next to it.
+      ctx.font = font(500, 13);
+      let timeColW = 0;
+      for (const e of entries) timeColW = Math.max(timeColW, ctx.measureText(timeStr(e.ts)).width);
+
+      let y = PAD + HEADER_H;
+      for (const dk of days) {
+        // Day label (width varies by language, so measure before drawing the line)
+        const d = new Date(dk + 'T00:00:00');
+        ctx.fillStyle = COL.accent;
+        ctx.font = font(700, 12.5);
+        const dayText = dateLabel(d);
+        ctx.fillText(dayText, PAD, y + DAY_H / 2);
+        const dayTextW = ctx.measureText(dayText).width;
+        ctx.strokeStyle = COL.line;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PAD + dayTextW + 10, y + DAY_H / 2);
+        ctx.lineTo(W - PAD, y + DAY_H / 2);
+        ctx.stroke();
+        y += DAY_H;
+
+        for (const e of groups[dk]) {
+          const cy = y + ROW_H / 2;
+          const name = lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug';
+
+          // Colour dot + drug name; preset blends are preserved.
+          const dotColor = colorForEntry(e) || '#56c1ab';
+          ctx.fillStyle = blendCanvasFill(ctx, PAD + 5, cy, 5, name, dotColor);
+          ctx.beginPath();
+          ctx.arc(PAD + 5, cy, 5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Time (far right)
+          ctx.fillStyle = COL.muted;
+          ctx.font = font(500, 13);
+          const tText = timeStr(e.ts);
+          ctx.fillText(tText, W - PAD - ctx.measureText(tText).width, cy);
+
+          // Dose (right-aligned, before the time column)
+          ctx.fillStyle = COL.text;
+          ctx.font = font(600, 14);
+          const doseText = e.dosageText || '';
+          const doseX = W - PAD - timeColW - 16;
+          ctx.fillText(doseText, doseX - ctx.measureText(doseText).width, cy);
+
+          // Name, shortened if it would collide with the dose
+          ctx.font = font(600, 14.5);
+          const nameMaxW = doseX - ctx.measureText(doseText).width - (PAD + 18) - 12;
+          ctx.fillText(ellipsize(ctx, name, Math.max(nameMaxW, 40)), PAD + 18, cy);
+
+          y += ROW_H;
+        }
+        y += DAY_GAP;
+      }
+
+      // Totals section: one row per drug, summed per unit.
+      ctx.fillStyle = COL.accent;
+      ctx.font = font(700, 12.5);
+      const totalsTitle = 'Total taken';
+      ctx.fillText(totalsTitle, PAD, y + DAY_H / 2);
+      const totalsTitleW = ctx.measureText(totalsTitle).width;
+      ctx.strokeStyle = COL.line;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD + totalsTitleW + 10, y + DAY_H / 2);
+      ctx.lineTo(W - PAD, y + DAY_H / 2);
+      ctx.stroke();
+      y += DAY_H;
+
+      for (const t of totalDrugs) {
+        const cy = y + ROW_H / 2;
+
+        ctx.fillStyle = blendCanvasFill(ctx, PAD + 5, cy, 5, t.name, t.color);
+        ctx.beginPath();
+        ctx.arc(PAD + 5, cy, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Total (far right)
+        ctx.fillStyle = COL.text;
+        ctx.font = font(700, 14);
+        const totW = ctx.measureText(t.label).width;
+        ctx.fillText(t.label, W - PAD - totW, cy);
+
+        // Name, shortened if it would collide with the total
+        ctx.font = font(600, 14.5);
+        const nameMaxW = (W - PAD - totW) - (PAD + 18) - 12;
+        ctx.fillText(ellipsize(ctx, t.name, Math.max(nameMaxW, 40)), PAD + 18, cy);
+
+        y += ROW_H;
+      }
+
+      return canvas;
+    }
+
+    // --- Rendering ---
+    const grid = $('#drug-grid');
+    const logBody = $('#log-body');
+
+    function render() {
+      renderDrugs(); renderLog(); updateLastDoseLabels(); syncEditingClass();
+      // Redrawing replaces the input the pad was typing into — put it away
+      if (padTarget && !document.body.contains(padTarget)) closeNumpad();
+    }
+
+    function renderDrugs() {
+      grid.innerHTML = '';
+
+      // Friendly empty state when there are no drugs yet
+      if (!state.drugs.length) {
+        const empty = document.createElement('div');
+        empty.className = 'grid-empty';
+        empty.innerHTML = 'Nothing tracked yet.<br>Tap <strong>+ Add substance</strong> to create your first card.';
+        grid.appendChild(empty);
+        return;
+      }
+
+      // SORTING: Last dose time descending
+      const sortedDrugs = [...state.drugs].sort((a, b) => {
+        const lastA = lastDoseDate(a.id) || 0;
+        const lastB = lastDoseDate(b.id) || 0;
+        if (lastA === 0 && lastB === 0) return 0;
+        return lastB - lastA; // Recent first
+      });
+
+      sortedDrugs.forEach((drug) => {
+        const card = document.createElement('div');
+        card.className = `card ${drug.expanded ? '' : 'collapsed'}`;
+        card.dataset.id = drug.id;
+        // Header taps toggle the card; controls keep their own actions.
+
+        const strip = document.createElement('div');
+        strip.className = 'color-strip';
+        // Preset blends appear on the strip and colour dot.
+        const cardBlend = blendFor(drug.name, drug.color);
+        strip.style.background = cardBlend ? blendStripCss(cardBlend) : drug.color;
+        card.appendChild(strip);
+
+        // Echo the drug colour in the border and top wash.
+        card.style.borderColor = hexToRgba(drug.color, 0.28);
+        card.style.background =
+          `linear-gradient(180deg, ${hexToRgba(drug.color, 0.06)} 0%, rgba(0,0,0,0) 96px), ` +
+          `linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%)`;
+
+        // -- Card Header --
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'card-header';
+
+        const topRow = document.createElement('div');
+        topRow.className = 'card-top-row';
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        // Avoid "name" so iOS does not offer contact autofill.
+        nameInput.className = 'drug-title';
+        nameInput.value = drug.name;
+        nameInput.dataset.prev = drug.name;
+        // Read-only until the pencil is tapped.
+        nameInput.readOnly = true;
+        nameInput.tabIndex = -1; // keyboard users rename via the pencil button
+        // "next" because the flow continues into the amount field
+        nameInput.setAttribute('enterkeyhint', 'next');
+        nameInput.setAttribute('aria-label', 'Substance');
+
+        // Disable autofill/autocorrect
+        nameInput.setAttribute('autocomplete', 'off');
+        nameInput.setAttribute('autocorrect', 'off');
+        nameInput.setAttribute('autocapitalize', 'off');
+        nameInput.setAttribute('spellcheck', 'false');
+
+        // Rebuilt on edit so existing cards drop out. Delayed hide lets taps land.
+        const presetRow = document.createElement('div');
+        presetRow.className = 'preset-row';
+        let presetHideTimer = null;
+        const hidePresetsSoon = () => {
+          presetHideTimer = setTimeout(() => presetRow.classList.remove('show'), 300);
+        };
+        const showPresets = () => {
+          clearTimeout(presetHideTimer);
+          presetRow.innerHTML = '';
+          const taken = new Set(state.drugs.filter(d => d.id !== drug.id).map(d => nameKey(d.name)));
+          // Closest match first while typing ("ket…" pulls Ketamine forward)
+          const ranked = [...PRESETS].sort((a, b) =>
+            presetMatchScore(a, nameInput.value) - presetMatchScore(b, nameInput.value));
+          for (const p of ranked) {
+            if (taken.has(nameKey(p.name))) continue;
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'preset-chip';
+            const dot = document.createElement('span');
+            dot.className = 'dot';
+            dot.style.background = p.blend ? blendDotCss(p.blend) : p.color;
+            chip.appendChild(dot);
+            chip.appendChild(document.createTextNode(p.name));
+            // Keep the title focused on desktop so a click feels seamless
+            chip.addEventListener('mousedown', (ev) => ev.preventDefault());
+            chip.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              clearTimeout(presetHideTimer);
+              // Blur before render so the old title cannot save over the preset.
+              nameInput.blur();
+              drug.name = p.name;
+              drug.color = p.color;
+              drug.lastUnit = p.unit; // the dose row's unit picker reads this
+              saveState();
+              render();
+              // Flow straight into dose entry.
+              if (drug.expanded) {
+                const numEl = document.querySelector(`[data-id="${drug.id}"] .dose-grid input`);
+                if (numEl) numEl.focus();
+              }
+            });
+            presetRow.appendChild(chip);
+          }
+          presetRow.classList.add('show');
+          presetRow.scrollLeft = 0; // best match must be in view
+        };
+
+        // Focus synchronously so iOS opens the keyboard.
+        const startTitleEdit = () => {
+          nameInput.readOnly = false;
+          nameInput.classList.add('editing');
+          showPresets();
+          nameInput.focus();
+          nameInput.select();
+        };
+        const renameBtn = iconBtn('icon-btn title-edit-btn', 'Rename', `Rename ${drug.name}`, ICONS.pencil);
+        renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startTitleEdit(); });
+
+        // Preset info; a preset word inside the name ("Ketamine D") counts too.
+        const infoBtn = iconBtn('icon-btn info-btn', 'Substance info', null, ICONS.info);
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const p = findPresetLoose(drug.name);
+          if (p) openWikiDialog(p);
+        });
+        // Shown/hidden in place so a rename (which doesn't re-render) updates it
+        const syncInfoBtn = () => {
+          const p = findPresetLoose(drug.name);
+          infoBtn.style.display = p ? '' : 'none';
+          if (p) infoBtn.setAttribute('aria-label', `About ${p.name} on PsychonautWiki`);
+        };
+        syncInfoBtn();
+
+        // Hidden mirror keeps the title input sized to its text.
+        const sizer = document.createElement('span');
+        sizer.className = 'title-sizer';
+        sizer.setAttribute('aria-hidden', 'true');
+        const sizeTitle = () => {
+          sizer.textContent = nameInput.value || ' ';
+          nameInput.style.width = Math.ceil(sizer.getBoundingClientRect().width + 18) + 'px';
+        };
+        nameInput.addEventListener('input', sizeTitle);
+
+        // Repeat button shows the exact dose it will add.
+        const lastEntry = getLastEntry(drug.id);
+        let repeatBtn = null;
+        if (lastEntry) {
+          const lastDoseText = displayValueUnit(lastEntry.value, lastEntry.unit);
+          repeatBtn = iconBtn('btn-sm repeat-btn', `Repeat last dose (${lastDoseText})`, `Repeat last dose: ${lastDoseText}`, ICONS.repeat);
+          repeatBtn.appendChild(document.createTextNode(lastDoseText));
+          repeatBtn.onclick = (e) => {
+            e.stopPropagation();
+            addEntryStandard(drug.id, drug.name, null, null, drug.color, lastEntry.value, lastEntry.unitRaw);
+          };
+        }
+
+        // Shared toggle for chevron and header taps; no re-render needed.
+        const chevBtn = document.createElement('button');
+        const toggleCard = () => {
+          drug.expanded = !drug.expanded;
+          saveState();
+          card.classList.toggle('collapsed', !drug.expanded);
+          chevBtn.setAttribute('aria-expanded', String(!!drug.expanded));
+          chevBtn.setAttribute('aria-label', drug.expanded ? 'Hide details' : 'Show details');
+        };
+
+        chevBtn.type = 'button';
+        chevBtn.className = 'chev-btn';
+        chevBtn.setAttribute('aria-expanded', String(!!drug.expanded));
+        chevBtn.setAttribute('aria-label', drug.expanded ? 'Hide details' : 'Show details');
+        chevBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5.5 8 10.5 13 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        chevBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleCard();
+        });
+
+        // Colour dot: small button in front of the title; tapping it opens
+        // a floating grid of the palette colours.
+        const colorWrap = document.createElement('span');
+        colorWrap.className = 'color-picker';
+
+        const colorBtn = document.createElement('button');
+        colorBtn.type = 'button';
+        colorBtn.className = 'color-dot-btn';
+        colorBtn.style.setProperty('--swatch', cardBlend ? blendDotCss(cardBlend) : drug.color);
+        const colorName = paletteNames[palette.indexOf(drug.color)] || 'Custom';
+        colorBtn.setAttribute('aria-label', `Color: ${colorName}`);
+        colorBtn.setAttribute('aria-haspopup', 'listbox');
+        colorBtn.setAttribute('aria-expanded', 'false');
+        colorBtn.innerHTML = '<span class="swatch"></span>';
+
+        const menu = document.createElement('div');
+        menu.className = 'color-menu';
+        menu.setAttribute('role', 'listbox');
+        menu.setAttribute('aria-label', 'Card color');
+
+        palette.forEach((hex, i) => {
+          const opt = document.createElement('div');
+          opt.className = 'color-option';
+          opt.setAttribute('role', 'option');
+          opt.setAttribute('aria-label', paletteNames[i]);
+          opt.title = paletteNames[i];
+          opt.innerHTML = `<span class="swatch" style="--swatch:${hex}"></span>`;
+          if (hex === drug.color) opt.setAttribute('aria-selected', 'true');
+          opt.addEventListener('click', (ev) => {
+            ev.stopPropagation(); ev.preventDefault();
+            drug.color = hex;
+            saveState();
+            render(); // rebuilds cards + log with the new colour (this also closes the menu)
+          });
+          menu.appendChild(opt);
+        });
+
+        // Place the menu near the dot, keeping it onscreen.
+        const positionMenu = () => {
+          const r = colorBtn.getBoundingClientRect();
+          const gap = 6, pad = 8;
+          const mw = menu.offsetWidth, mh = menu.offsetHeight;
+          let top = r.bottom + gap;
+          if (top + mh > window.innerHeight - pad && r.top - gap - mh > pad) {
+            top = r.top - gap - mh;
+          }
+          let left = Math.min(r.left, window.innerWidth - pad - mw);
+          left = Math.max(pad, left);
+          menu.style.top = top + 'px';
+          menu.style.left = left + 'px';
+        };
+        colorWrap._reposition = positionMenu; // global scroll/resize handlers use this
+
+        colorBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = colorWrap.classList.toggle('open');
+          colorBtn.setAttribute('aria-expanded', String(isOpen));
+          if (isOpen) positionMenu();
+        });
+
+        colorWrap.appendChild(colorBtn);
+        colorWrap.appendChild(menu);
+
+        topRow.appendChild(colorWrap);
+        topRow.appendChild(nameInput);
+        topRow.appendChild(renameBtn);
+        topRow.appendChild(infoBtn);
+        topRow.appendChild(chevBtn);
+        topRow.appendChild(sizer);
+
+        // Tap anywhere on the header (not on a button/input/menu) to
+        // expand or collapse — much bigger target than the chevron alone
+        headerDiv.addEventListener('click', (e) => {
+          if (e.target.closest('button, input, select, .color-picker')) return;
+          toggleCard();
+        });
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.id = `meta-${drug.id}`;
+
+        // "Since last dose" is the headline metric.
+        const lastBlock = document.createElement('div');
+        lastBlock.className = 'meta-block';
+        const lastLabel = document.createElement('span');
+        lastLabel.className = 'meta-label';
+        lastLabel.textContent = 'Last dose';
+        const lastSpan = document.createElement('span');
+        lastSpan.className = 'last';
+        lastSpan.id = `last-${drug.id}`;
+        lastSpan.textContent = '—';
+        lastBlock.appendChild(lastLabel);
+        lastBlock.appendChild(lastSpan);
+
+        const totalBlock = document.createElement('div');
+        totalBlock.className = 'meta-block';
+        const totalLabel = document.createElement('span');
+        totalLabel.className = 'meta-label';
+        totalLabel.textContent = 'Total';
+        const totalSpan = document.createElement('span');
+        totalSpan.className = 'total';
+        totalSpan.id = `meta-total-${drug.id}`;
+        totalSpan.textContent = totalsForDrugLabel(drug.id);
+        totalBlock.appendChild(totalLabel);
+        totalBlock.appendChild(totalSpan);
+
+        // Repeat button sits next to the total.
+        const metaRight = document.createElement('div');
+        metaRight.className = 'meta-right';
+        if (repeatBtn) metaRight.appendChild(repeatBtn);
+        metaRight.appendChild(totalBlock);
+
+        meta.appendChild(lastBlock);
+        meta.appendChild(metaRight);
+
+        const nameErr = document.createElement('div');
+        nameErr.className = 'name-error';
+        nameErr.textContent = 'Name already exists.';
+
+        headerDiv.appendChild(topRow);
+        headerDiv.appendChild(presetRow);
+        headerDiv.appendChild(nameErr);
+        headerDiv.appendChild(meta);
+        card.appendChild(headerDiv);
+
+        // -- Card Body (collapsible; the wrapper makes the animation work) --
+        const collapseWrap = document.createElement('div');
+        collapseWrap.className = 'card-collapse';
+        const bodyDiv = document.createElement('div');
+        bodyDiv.className = 'card-body';
+
+        // Dose Inputs
+        const doseRow = document.createElement('div');
+        doseRow.className = 'dose-grid';
+
+        const numInput = document.createElement('input');
+        // type=text so both "1.5" and "1,5" work in every locale
+        numInput.type = 'text';
+        numInput.setAttribute('autocomplete', 'off');
+        numInput.setAttribute('aria-label', 'Dose amount');
+        numInput.placeholder = 'Amount';
+
+        const unitSelect = makeUnitSelect(drug.lastUnit || 'mg');
+        unitSelect.setAttribute('aria-label', 'Unit');
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-btn';
+        addBtn.textContent = 'Add';
+
+        // Optional backdating for the next Add.
+        let earlierActive = false;
+
+        const earlierWrap = document.createElement('div');
+
+        const earlierLink = document.createElement('button');
+        earlierLink.type = 'button';
+        earlierLink.className = 'link-btn';
+        earlierLink.textContent = 'Taken earlier? Set time';
+
+        const earlierEdit = document.createElement('div');
+        earlierEdit.className = 'earlier-edit';
+        const earlierLabel = document.createElement('span');
+        earlierLabel.className = 'earlier-label';
+        earlierLabel.textContent = 'Taken at';
+        const timeInput = document.createElement('input');
+        timeInput.type = 'time';
+        timeInput.className = 'earlier-time';
+        timeInput.setAttribute('aria-label', 'Time taken');
+        const earlierCancel = iconBtn('earlier-cancel', null, 'Cancel earlier time', ICONS.x);
+        earlierEdit.appendChild(earlierLabel);
+        earlierEdit.appendChild(timeInput);
+        earlierEdit.appendChild(earlierCancel);
+
+        // Same tiny "Change date" option as in the log's edit row.
+        const earlierDate = document.createElement('input');
+        earlierDate.type = 'date';
+        earlierDate.className = 'earlier-date';
+        earlierDate.setAttribute('aria-label', 'Date taken');
+        earlierDate.hidden = true;
+        const earlierDateLink = document.createElement('button');
+        earlierDateLink.type = 'button';
+        earlierDateLink.className = 'link-btn date-link';
+        earlierDateLink.textContent = 'Change date';
+        earlierDateLink.addEventListener('click', () => {
+          earlierDateLink.hidden = true;
+          earlierDate.hidden = false;
+          try { earlierDate.showPicker?.(); } catch { /* focus is enough */ }
+        });
+        const earlierBox = document.createElement('div');
+        earlierBox.className = 'earlier-box';
+        earlierBox.appendChild(earlierEdit);
+        earlierBox.appendChild(earlierDateLink);
+        earlierBox.appendChild(earlierDate);
+
+        const updateAddLabel = () => {
+          addBtn.textContent = (earlierActive && timeInput.value) ? `Add at ${timeInput.value}` : 'Add';
+        };
+        earlierLink.addEventListener('click', () => {
+          earlierActive = true;
+          const now = new Date();
+          timeInput.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          earlierDate.value = dayKey(now);
+          earlierDate.hidden = true;
+          earlierDateLink.hidden = false;
+          earlierWrap.replaceChildren(earlierBox);
+          updateAddLabel();
+        });
+        earlierCancel.addEventListener('click', () => {
+          earlierActive = false;
+          earlierWrap.replaceChildren(earlierLink);
+          updateAddLabel();
+        });
+        timeInput.addEventListener('input', updateAddLabel);
+        earlierWrap.appendChild(earlierLink);
+
+        // The backdated timestamp for the next Add, or undefined for "now"
+        const earlierTs = () => {
+          if (!earlierActive || !timeInput.value) return undefined;
+          const [hh, mm] = timeInput.value.split(':').map(Number);
+          if (isNaN(hh) || isNaN(mm)) return undefined;
+          const d = new Date();
+          const datePicked = !earlierDate.hidden && earlierDate.value;
+          if (datePicked) {
+            const [y, mo, day] = earlierDate.value.split('-').map(Number);
+            if (!isNaN(y) && !isNaN(mo) && !isNaN(day)) d.setFullYear(y, mo - 1, day);
+          }
+          d.setHours(hh, mm, 0, 0);
+          // Later-than-now means yesterday, for nights crossing midnight —
+          // but not when a date was picked on purpose (onAdd rejects that).
+          if (d > new Date() && !datePicked) d.setDate(d.getDate() - 1);
+          return d;
+        };
+
+        const onAdd = () => {
+          const ts = earlierTs();
+          if (ts && ts > new Date()) { showToast('That time is in the future.'); return; }
+          addEntryStandard(drug.id, drug.name, numInput, unitSelect, drug.color, undefined, undefined, ts);
+        };
+        addBtn.addEventListener('click', (e) => { e.stopPropagation(); onAdd(); });
+        numInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onAdd(); } });
+        useNumpad(numInput, 'Add', onAdd);
+
+        doseRow.appendChild(numInput);
+        doseRow.appendChild(unitSelect);
+        doseRow.appendChild(addBtn);
+
+        // Name Editing Logic
+        nameInput.addEventListener('click', (e) => { e.stopPropagation(); }); // Prevent collapse while editing
+        nameInput.addEventListener('focus', () => {
+            nameInput.dataset.prev = drug.name;
+            nameInput.select(); // Auto-select all text for easy overwrite
+        });
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              // Expanded card: jump to amount; collapsed card: just save.
+              if (drug.expanded) numInput.focus();
+              else nameInput.blur();
+            }
+        });
+        nameInput.addEventListener('input', () => {
+          const proposed = nameInput.value.trim();
+          // Re-rank the preset chips as the name grows
+          if (nameInput.classList.contains('editing')) showPresets();
+          const dup = state.drugs.some(d => d.id !== drug.id && nameKey(d.name) === nameKey(proposed));
+          if (dup) { nameInput.classList.add('invalid'); nameErr.style.display = 'block'; }
+          else { nameInput.classList.remove('invalid'); nameErr.style.display = 'none'; }
+
+          // Smart Unit Detection
+          const low = proposed.toLowerCase();
+          let autoUnit = null;
+
+          // "Start with" logic
+          const linePrefixes = ["amph", "speed", "k ", "ket", "cocaine", "coke", "meph", "3m", "4m"];
+          if (linePrefixes.some(p => low.startsWith(p.toLowerCase()))) {
+            autoUnit = 'line';
+          } else if (low.includes('lsd')) {
+            autoUnit = 'µg';
+          } else if (low.includes('shroom')) {
+            autoUnit = 'g';
+          }
+
+          // A recognized pre-set name knows its unit best
+          const typedPreset = findPresetLoose(proposed);
+          if (typedPreset) autoUnit = typedPreset.unit;
+
+          if (autoUnit) {
+            unitSelect.value = autoUnit;
+          }
+        });
+        nameInput.addEventListener('blur', () => {
+          // Lock the title again — the pencil is the only way back in
+          nameInput.readOnly = true;
+          nameInput.classList.remove('editing');
+          const proposed = nameInput.value.trim();
+          const prev = nameInput.dataset.prev || drug.name;
+          const isEmpty = proposed.length === 0;
+          const dup = state.drugs.some(d => d.id !== drug.id && nameKey(d.name) === nameKey(proposed));
+          if (isEmpty || dup) {
+            nameInput.value = prev;
+            nameInput.classList.remove('invalid');
+            nameErr.style.display = dup ? 'block' : 'none';
+            setTimeout(() => { nameErr.style.display = 'none'; }, 2000);
+            return;
+          }
+          drug.name = proposed;
+          renameBtn.setAttribute('aria-label', `Rename ${drug.name}`);
+          // Known preset typed by hand — exactly, or as a word inside the
+          // name ("Ketamine D"): adopt colour and unit in place. Spelling is
+          // only corrected when nothing else was typed around it.
+          const preset = findPresetLoose(proposed);
+          if (preset) {
+            if (findPreset(proposed)) {
+              drug.name = preset.name;
+              nameInput.value = preset.name;
+            }
+            drug.color = preset.color;
+            drug.lastUnit = preset.unit;
+            unitSelect.value = preset.unit;
+            colorBtn.style.setProperty('--swatch', preset.blend ? blendDotCss(preset.blend) : drug.color);
+            strip.style.background = preset.blend ? blendStripCss(preset.blend) : drug.color;
+            card.style.borderColor = hexToRgba(drug.color, 0.28);
+            card.style.background =
+              `linear-gradient(180deg, ${hexToRgba(drug.color, 0.06)} 0%, rgba(0,0,0,0) 96px), ` +
+              `linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%)`;
+          }
+          syncInfoBtn(); // ⓘ appears/disappears with the new name
+          saveState();
+          // The log's name chips pick up the rename right away — unless an
+          // entry is mid-edit (a redraw would wipe what's typed there).
+          if (!editingId) renderLog();
+        });
+        // Re-measure after every edit attempt (the value may have reverted)
+        nameInput.addEventListener('blur', sizeTitle);
+        // The chips linger briefly so a tap on one still lands (see above)
+        nameInput.addEventListener('blur', hidePresetsSoon);
+
+        // Remove lives away from Add and is undoable from the toast.
+        const removeLink = document.createElement('button');
+        removeLink.type = 'button';
+        removeLink.className = 'btn-sm btn-danger';
+        removeLink.textContent = 'Remove';
+        removeLink.onclick = () => {
+          const idx = state.drugs.findIndex(d => d.id === drug.id);
+          if (idx < 0) return;
+          const removed = state.drugs[idx];
+          state.drugs.splice(idx, 1);
+          saveState(); render();
+          showToast(`Removed ${removed.name || 'substance'}.`, 6000, 'Undo', () => {
+            state.drugs.splice(Math.min(idx, state.drugs.length), 0, removed);
+            saveState(); render();
+          });
+        };
+
+        const foot = document.createElement('div');
+        foot.className = 'card-foot';
+        foot.appendChild(removeLink);
+        foot.appendChild(earlierWrap);
+
+        bodyDiv.appendChild(doseRow);
+        bodyDiv.appendChild(foot);
+
+        collapseWrap.appendChild(bodyDiv);
+        card.appendChild(collapseWrap);
+        grid.appendChild(card);
+        sizeTitle(); // needs the card in the page to measure the text
+      });
+    }
+
+    document.addEventListener('click', () => { $$('.color-picker.open').forEach(el => el.classList.remove('open')); });
+    // Keep any open floating color menu anchored to its button while scrolling/resizing.
+    const repositionOpenMenus = () => { $$('.color-picker.open').forEach(el => el._reposition && el._reposition()); };
+    window.addEventListener('scroll', repositionOpenMenus, true);
+    window.addEventListener('resize', repositionOpenMenus);
+    // Rotating the phone changes the card width — re-check the label fit
+    window.addEventListener('resize', updateLastDoseLabels);
+
+    function renderLog() {
+      // One flat, newest-first list for the single-night model.
+      const entries = [...state.entries].sort((a,b) => b.ts - a.ts);
+      logBody.innerHTML = '';
+      if (!entries.length) {
+        logBody.innerHTML = '<tr class="empty-row"><td colspan="4">No doses logged yet — add one above to get started.</td></tr>';
+        return;
+      }
+
+      const todayKey = dayKey(new Date());
+      {
+        for (const e of entries) {
+          const tr = document.createElement('tr');
+          tr.dataset.entryId = e.id;
+
+          const tdDrug = document.createElement('td');
+          const chip = document.createElement('span');
+          chip.className = 'drug-chip';
+          const bg = colorForEntry(e) || '#56c1ab';
+          chip.style.background = hexToRgba(bg, 0.16);
+          chip.style.borderColor = hexToRgba(bg, 0.38);
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug';
+          chip.appendChild(nameSpan);
+          tdDrug.appendChild(chip);
+
+          const tdDose = document.createElement('td');
+          tdDose.className = 'dose-cell';
+          const tdTimeCell = document.createElement('td');
+          tdTimeCell.className = 'time-cell';
+
+          if (editingId === e.id) {
+            const amountInput = document.createElement('input');
+            // type=text so both "1.5" and "1,5" work in every locale
+            amountInput.type = 'text';
+            amountInput.className = 'edit-input';
+            amountInput.id = `edit-num-${e.id}`;
+            amountInput.value = (e.value != null && isFinite(e.value)) ? e.value : '';
+            useNumpad(amountInput, 'Save', () => saveEdit(e.id));
+
+            const unitSelect = makeUnitSelect(e.unitRaw || e.unit || 'mg');
+            unitSelect.id = `edit-unit-${e.id}`;
+
+            const dtInput = document.createElement('input');
+            dtInput.type = 'time';
+            dtInput.id = `edit-time-${e.id}`;
+            dtInput.className = 'edit-input';
+            dtInput.value = formatAsTime(e.ts);
+            dtInput.setAttribute('enterkeyhint', 'done');
+
+            // Doses just before midnight can need yesterday's date, so a
+            // tiny link swaps into a date field. Entries already from
+            // another day show the date field right away.
+            const dateInput = document.createElement('input');
+            dateInput.type = 'date';
+            dateInput.id = `edit-date-${e.id}`;
+            dateInput.className = 'edit-input edit-date';
+            dateInput.value = dayKey(e.ts);
+            dateInput.setAttribute('aria-label', 'Date taken');
+
+            const dateLink = document.createElement('button');
+            dateLink.type = 'button';
+            dateLink.className = 'link-btn date-link';
+            dateLink.textContent = 'Change date';
+            dateLink.addEventListener('click', () => {
+              dateLink.hidden = true;
+              dateInput.hidden = false;
+              try { dateInput.showPicker?.(); } catch { /* focus is enough */ }
+            });
+            if (dayKey(e.ts) === todayKey) dateInput.hidden = true;
+            else dateLink.hidden = true;
+
+            const enterSave = (ev) => {
+                if (ev.key === 'Enter' || ev.keyCode === 13) {
+                    ev.preventDefault();
+                    saveEdit(e.id);
+                }
+            };
+            amountInput.addEventListener('keydown', enterSave);
+            unitSelect.addEventListener('keydown', enterSave);
+            dtInput.addEventListener('keydown', enterSave);
+            dateInput.addEventListener('keydown', enterSave);
+
+            const amtWrap = document.createElement('div');
+            amtWrap.className = 'edit-amount-grid';
+            amtWrap.appendChild(amountInput);
+            amtWrap.appendChild(unitSelect);
+            tdDose.appendChild(amtWrap);
+            tdTimeCell.appendChild(dtInput);
+            tdTimeCell.appendChild(dateLink);
+            tdTimeCell.appendChild(dateInput);
+          } else {
+            tdDose.textContent = e.dosageText;
+            // Older entries (kept past a night) get their date so times
+            // can't be mistaken for tonight's
+            tdTimeCell.textContent = (dayKey(e.ts) === todayKey)
+              ? timeStr(e.ts)
+              : `${dateLabel(e.ts)}, ${timeStr(e.ts)}`;
+          }
+
+          const tdActions = document.createElement('td');
+          tdActions.className = 'row-actions';
+
+          if (editingId === e.id) {
+            const saveBtn = iconBtn('icon-btn', 'Save', 'Save', ICONS.check);
+            saveBtn.addEventListener('touchstart', (ev) => { ev.preventDefault(); saveEdit(e.id); });
+            saveBtn.addEventListener('click', () => saveEdit(e.id));
+
+            const cancelBtn = iconBtn('icon-btn', 'Cancel', 'Cancel', ICONS.x);
+            cancelBtn.addEventListener('click', cancelEdit);
+
+            tdActions.appendChild(saveBtn);
+            tdActions.appendChild(cancelBtn);
+          } else {
+            const editBtn = iconBtn('icon-btn', 'Edit', 'Edit entry', ICONS.pencil);
+            editBtn.dataset.action = 'edit-entry';
+            editBtn.dataset.entryId = e.id;
+
+            const delBtn = iconBtn('icon-btn icon-danger', 'Remove this entry', 'Remove entry', ICONS.x);
+            delBtn.dataset.action = 'remove-entry';
+            delBtn.dataset.entryId = e.id;
+
+            tdActions.appendChild(editBtn);
+            tdActions.appendChild(delBtn);
+          }
+
+          tr.appendChild(tdDrug);
+          tr.appendChild(tdDose);
+          tr.appendChild(tdTimeCell);
+          tr.appendChild(tdActions);
+          logBody.appendChild(tr);
+        }
+      }
+
+      state.drugs.forEach(d => {
+        const totalEl = document.getElementById(`meta-total-${d.id}`);
+        if (totalEl) totalEl.textContent = totalsForDrugLabel(d.id);
+      });
+    }
+
+    function lookupDrugName(id) { return state.drugs.find(d => d.id === id)?.name || null; }
+    function lookupDrugColor(id) { return state.drugs.find(d => d.id === id)?.color || null; }
+    function colorForEntry(e) {
+      // Fall back to the color saved on the entry so logs for a deleted drug keep their dot.
+      return lookupDrugColor(e.drugId) || colorForName(lookupDrugName(e.drugId) || e.drugNameAtEntry) || e.colorAtEntry;
+    }
+    function colorForName(name) {
+      if (!name) return null;
+      const live = state.drugs.find(d => nameKey(d.name) === nameKey(name));
+      if (live) return live.color;
+      return null;
+    }
+
+    function totalsForDrugLabel(drugId) {
+      const units = new Map();
+      for (const e of state.entries) {
+        if (e.drugId !== drugId) continue;
+        if (e.value == null || !isFinite(e.value)) continue;
+        const u = normalizeUnit(e.unit || '');
+        units.set(u, (units.get(u) || 0) + e.value);
+      }
+      if (!units.size) return '—';
+      const parts = [];
+      for (const [unit, sum] of units.entries()) { parts.push(displayValueUnit(sum, unit)); }
+      return parts.join(' • ');
+    }
+
+    function formatSinceLabel(date) {
+      if (!date || isNaN(date)) return '—';
+      const now = new Date();
+      let diffMin = Math.floor((now - date) / 60000);
+      const inFuture = diffMin < 0;
+      if (inFuture) diffMin = Math.abs(diffMin);
+      if (diffMin < 1) return inFuture ? 'in <1 min' : 'just now';
+      if (diffMin < 60) return `${diffMin} min ${inFuture ? '' : 'ago'}`.trim();
+      const hours = Math.floor(diffMin / 60);
+      const mins = diffMin % 60;
+      if (diffMin < 1440) return `${hours} h ${mins} min ${inFuture ? '' : 'ago'}`.trim();
+      const days = Math.floor(hours / 24);
+      const remH = hours % 24;
+      return `${days} d ${remH} h ${inFuture ? '' : 'ago'}`.trim();
+    }
+
+    function updateLastDoseLabels() {
+      state.drugs.forEach(d => {
+        const el = document.getElementById(`last-${d.id}`);
+        if (!el) return;
+        el.textContent = formatSinceLabel(lastDoseDate(d.id));
+        fitLastDoseLabel(el);
+      });
+    }
+
+    // Shrink the big "since last dose" number just enough that the row with
+    // TOTAL doesn't wrap ("14 h 1 min ago"). Below the smallest step,
+    // wrapping is accepted — that only happens for very long labels.
+    function fitLastDoseLabel(el) {
+      const meta = el.closest('.meta');
+      if (!meta || meta.children.length < 2) return;
+      const left = meta.firstElementChild;
+      const right = meta.lastElementChild;
+      const fitsOneRow = () =>
+        right.getBoundingClientRect().top < left.getBoundingClientRect().bottom - 1 &&
+        el.getBoundingClientRect().height < parseFloat(getComputedStyle(el).fontSize) * 1.6;
+      el.style.fontSize = '';
+      for (const px of [23, 21, 19]) {
+        if (fitsOneRow()) return;
+        el.style.fontSize = px + 'px';
+      }
+    }
+
+    // --- Actions ---
+    // The whole text must be a number: "1,5" and "2." are fine, "1abc" is not
+    // (pasting or a hardware keyboard can get past the in-app number pad).
+    function parseAmount(text) {
+      const t = String(text).trim().replace(',', '.');
+      return /^(\d+\.?\d*|\.\d+)$/.test(t) ? parseFloat(t) : NaN;
+    }
+
+    function addEntryStandard(drugId, currentDrugName, numInput, unitSelect, colorAtEntry, explicitValue, explicitUnitRaw, tsOverride) {
+      let value, unitRaw;
+
+      if (explicitValue !== undefined) {
+        // Repeat Last path
+        value = explicitValue;
+        unitRaw = explicitUnitRaw;
+      } else {
+        // Manual input path
+        value = parseAmount(numInput.value);
+        if (!isFinite(value) || value <= 0) {
+          showToast('Enter a positive amount.');
+          if (numInput) {
+            numInput.focus();
+            numInput.style.boxShadow = '0 0 0 3px rgba(239, 110, 102, 0.4)';
+            setTimeout(() => (numInput.style.boxShadow = ''), 300);
+          }
+          return;
+        }
+        unitRaw = unitSelect.value;
+      }
+
+      const unitNorm = normalizeUnit(unitRaw);
+      const ts = tsOverride || new Date(); // "Taken earlier?" passes a backdated time
+      const dosageText = displayValueUnit(value, unitRaw);
+      const entry = { id: uid('e'), ts, drugId, drugNameAtEntry: currentDrugName, dosageText, value, unit: unitNorm, unitRaw, colorAtEntry };
+      state.entries.push(entry);
+
+      const drug = state.drugs.find(d => d.id === drugId);
+      if (drug) {
+        drug.lastUnit = unitRaw;
+        drug.expanded = false; // AUTO-COLLAPSE
+      }
+
+      saveState();
+
+      if (numInput) numInput.value = '';
+      render();
+      // Mention the day when it isn't today, e.g. a time rolled back to
+      // yesterday because it was later than now.
+      const when = dayKey(ts) === dayKey(new Date())
+        ? timeStr(ts) : `${dateLabel(ts)}, ${timeStr(ts)}`;
+      showToast(tsOverride
+        ? `Added ${dosageText} of ${currentDrugName} at ${when}`
+        : `Added ${dosageText} of ${currentDrugName}`);
+    }
+
+    // Do not open the number pad until the amount field is tapped.
+    function startEdit(entryId) { editingId = entryId; render(); }
+
+    function saveEdit(entryId) {
+      const amountEl = document.getElementById(`edit-num-${entryId}`);
+      const unitEl = document.getElementById(`edit-unit-${entryId}`);
+      const timeEl = document.getElementById(`edit-time-${entryId}`);
+      const e = state.entries.find(x => x.id === entryId);
+      if (!e || !amountEl || !unitEl || !timeEl) return;
+
+      const value = parseAmount(amountEl.value);
+      if (!isFinite(value) || value <= 0) {
+        showToast('Enter a positive amount.');
+        amountEl.focus();
+        return;
+      }
+      const unitRaw = unitEl.value;
+
+      // Start from the original timestamp; the date field (shown on
+      // request) can move the entry to another day, e.g. before midnight.
+      let newDate = new Date(e.ts);
+      const dateEl = document.getElementById(`edit-date-${entryId}`);
+      if (dateEl && dateEl.value) {
+        const [y, mo, day] = dateEl.value.split('-').map(Number);
+        if (!isNaN(y) && !isNaN(mo) && !isNaN(day)) newDate.setFullYear(y, mo - 1, day);
+      }
+      if (timeEl && timeEl.value) {
+        const [hh, mm] = timeEl.value.split(':').map(Number);
+        if (!isNaN(hh) && !isNaN(mm)) {
+            newDate.setHours(hh);
+            newDate.setMinutes(mm);
+        }
+      }
+      // A dose can't lie in the future; the date field is right there
+      // for times that belong to yesterday.
+      if (newDate > new Date()) {
+        showToast('That time is in the future.');
+        return;
+      }
+
+      e.value = value;
+      e.unit = normalizeUnit(unitRaw);
+      e.unitRaw = unitRaw;
+      e.dosageText = displayValueUnit(value, unitRaw);
+      e.ts = newDate;
+
+      const d = state.drugs.find(d => d.id === e.drugId);
+      if (d) d.lastUnit = unitRaw;
+
+      editingId = null;
+      saveState();
+      render();
+    }
+
+    function cancelEdit() { editingId = null; render(); }
+
+    let editingId = null;
+    function syncEditingClass() { document.body.classList.toggle('editing', !!editingId); }
+
+    // Clears the log right away — the toast offers a few seconds to undo.
+    // Undo merges the old entries back, so a dose logged in between survives.
+    function clearLogWithUndo(message) {
+      const backup = state.entries;
+      state.entries = [];
+      saveState();
+      render();
+      showToast(message, 6000, 'Undo', () => {
+        state.entries = backup.concat(state.entries);
+        saveState();
+        render();
+      });
+    }
+
+    // Event delegation
+    document.addEventListener('click', async (e) => {
+      if (e.target && e.target.id === 'clear-log') {
+        if (state.entries.length) clearLogWithUndo('Log cleared.');
+      }
+
+      if (e.target && e.target.id === 'add-med') {
+        // Plain "New substance"; only add a number if that one's taken.
+        const base = DEFAULT_NAME; const names = new Set(state.drugs.map(d => nameKey(d.name)));
+        let candidate = base; let i = 1;
+        while (names.has(nameKey(candidate))) { i++; candidate = `${base} ${i}`; }
+        const color = palette[state.drugs.length % palette.length];
+        const newId = uid('drug');
+        state.drugs.push({ id: newId, name: candidate, color, expanded: true });
+        saveState();
+        render();
+
+        // Start renaming inside the tap so phones open the keyboard.
+        const card = document.querySelector(`[data-id="${newId}"]`);
+        const newNameInput = card ? card.querySelector('.drug-title') : null;
+        const pencil = card ? card.querySelector('.title-edit-btn') : null;
+        if (pencil) {
+          pencil.click();
+          // Scrolling can wait until the keyboard starts sliding up
+          setTimeout(() => {
+            if (newNameInput) newNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 60);
+        }
+      }
+
+      const actionBtn = e.target.closest('[data-action]');
+      if (actionBtn) {
+        const action = actionBtn.dataset.action;
+        const id = actionBtn.dataset.entryId;
+        if (action === 'remove-entry') {
+          // Removes right away — the toast offers a few seconds to undo
+          const idx = state.entries.findIndex(x => x.id === id);
+          if (idx >= 0) {
+            const removed = state.entries[idx];
+            state.entries.splice(idx, 1);
+            saveState();
+            render();
+            showToast('Entry removed.', 6000, 'Undo', () => {
+              state.entries.push(removed); // sort order is by time, so position restores itself
+              saveState();
+              render();
+            });
+          }
+        }
+        if (action === 'edit-entry') startEdit(id);
+      }
+    });
+
+    // Information dialog
+    const privacyModal = setupModal($('#privacy'));
+    $('#privacy-open').addEventListener('click', (e) => { e.preventDefault(); privacyModal.open($('#privacy-close')); });
+    $('#privacy-close').addEventListener('click', privacyModal.close);
+
+    setInterval(updateLastDoseLabels, 60000);
+
+    try { render(); } catch(e) { console.error("Initial render failed", e); }
+    if (stateLoadFailed) {
+      showToast('Your saved log could not be read, so the app starts empty. The unreadable copy was kept, not deleted.', 10000);
+    }
+
+    // =====================================================================
+    // Welcome-back prompt for the one-night model. Old logs can be cleared,
+    // with Undo, when the newest entry is over 12 hours old.
+    // =====================================================================
+    (function setupFreshStart() {
+      const STALE_MS = 12 * 60 * 60 * 1000;
+      if (!state.entries.length) return;
+      let newest = null;
+      for (const e of state.entries) {
+        if (!e.ts || isNaN(e.ts)) continue;
+        if (!newest || e.ts > newest) newest = e.ts;
+      }
+      if (!newest || (Date.now() - newest) < STALE_MS) return;
+
+      const modal = setupModal($('#fresh-start'));
+      const keepBtn = $('#fresh-keep');
+      $('#fresh-msg').textContent =
+        `Your log still has entries from a previous night (last dose ${formatSinceLabel(newest)}). Start fresh, or keep them?`;
+
+      keepBtn.addEventListener('click', modal.close);
+      $('#fresh-clear').addEventListener('click', () => {
+        modal.close();
+        clearLogWithUndo('Log cleared.');
+      });
+
+      modal.open(keepBtn);
+    })();
+
+    // =====================================================================
+    // PWA: service worker, iOS install hint, persistent-storage request
+    // =====================================================================
+
+    // Register the service worker for offline loading.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('Service worker registration failed:', err);
+        });
+      });
+    }
+
+    // Ask the browser to protect saved data from automatic cleanup.
+    window.addEventListener('pointerdown', () => {
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
+    }, { once: true });
+
+    // Which phone/browser is this? (shared by the banner and the welcome screen)
+    // iPadOS pretends to be a Mac, hence the maxTouchPoints check.
+    const platformUA = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/i.test(platformUA) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    // Real Safari (not Chrome/Firefox/Edge on iOS, which have their own Share menus)
+    const isIOSSafari = isIOS && /Safari/i.test(platformUA) && !/CriOS|FxiOS|EdgiOS|Chrome/i.test(platformUA);
+    const isAndroid = /Android/i.test(platformUA);
+    const isDuckDuckGo = /DuckDuckGo/i.test(platformUA);
+    const isSamsungBrowser = /SamsungBrowser/i.test(platformUA);
+    const isAndroidChrome = isAndroid && /Chrome\//i.test(platformUA) &&
+      !/EdgA|OPR|Opera|SamsungBrowser|Firefox|DuckDuckGo|; wv\)/i.test(platformUA);
+    const isBestAndroidInstallBrowser = isAndroidChrome || isSamsungBrowser;
+    // Already running as an installed home-screen app?
+    const isStandalone = navigator.standalone === true ||
+                         window.matchMedia('(display-mode: standalone)').matches;
+
+    // Inline Share icon for install instructions.
+    const SHARE_GLYPH = '<svg class="share-glyph" width="15" height="18" viewBox="0 0 18 22" fill="none" aria-hidden="true">' +
+      '<path d="M9 1v13M5 5l4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M3 9H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+    // Android install prompt, reused by the welcome screen and banner.
+    let deferredInstallPrompt = null;
+
+    // Trigger the browser's own install dialog (Android). Returns true if
+    // the person accepted.
+    async function triggerInstallPrompt() {
+      if (!deferredInstallPrompt) return false;
+      const prompt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      prompt.prompt();
+      try {
+        const choice = await prompt.userChoice;
+        return !!(choice && choice.outcome === 'accepted');
+      } catch { return false; }
+    }
+
+    // Browser-tab install hint; never shown inside the installed app.
+    (function setupInstallHint() {
+      const hint = $('#install-hint');
+      const msg = $('#install-hint-msg');
+      const installBtn = $('#install-hint-btn');
+      const closeBtn = $('#install-hint-close');
+
+      if (isStandalone) return; // inside the installed app: never show it
+
+      if (isIOSSafari) {
+        msg.innerHTML = 'Install this app: tap <b>Share</b> in Safari, then <b>"Add&nbsp;to&nbsp;Home&nbsp;Screen"</b>. It will work fully offline.';
+      } else if (isIOS) {
+        msg.innerHTML = 'Install this app: tap your browser’s <b>Share</b> button, then <b>"Add&nbsp;to&nbsp;Home&nbsp;Screen"</b>.';
+      } else if (isDuckDuckGo) {
+        msg.innerHTML = 'DuckDuckGo can only save a browser shortcut. For the full app install, open this link in <b>Chrome</b> or <b>Samsung Internet</b>.';
+      } else if (isAndroid) {
+        msg.innerHTML = 'Best Android install: open in <b>Chrome</b> or <b>Samsung Internet</b>, then tap <b>⋮</b> → <b>Install app</b>.';
+      } else {
+        msg.innerHTML = 'On your phone, visit <b>doselog.github.io</b> — or install it here from the address bar in Chrome or Edge.';
+      }
+      hint.hidden = false;
+
+      // Android, once the real install prompt is available: one-tap button
+      installBtn.addEventListener('click', async () => {
+        const accepted = await triggerInstallPrompt();
+        installBtn.hidden = true;
+        if (accepted) hint.hidden = true;
+      });
+
+      closeBtn.addEventListener('click', () => { hint.hidden = true; });
+    })();
+
+    // =====================================================================
+    // Welcome/install screen, reopenable from Information.
+    // =====================================================================
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      // Swap the welcome's written steps for the real one-tap Install button
+      const btn = $('#welcome-install-btn');
+      const steps = $('#welcome-steps');
+      if (btn && !isStandalone) { btn.hidden = false; steps.hidden = true; }
+      // ...and offer the same one-tap install in the banner
+      const hint = $('#install-hint');
+      const hintBtn = $('#install-hint-btn');
+      const hintMsg = $('#install-hint-msg');
+      if (hintBtn && !hint.hidden) {
+        hintMsg.innerHTML = 'Install DoseLog with this browser — free, offline, no account.';
+        hintBtn.hidden = false;
+      }
+    });
+
+    (function setupWelcome() {
+      const WELCOME_KEY = 'med_tracker_welcome_seen';
+      const overlay = $('#welcome');
+      const startBtn = $('#welcome-start');
+      const installSection = $('#welcome-install');
+      const installTitle = $('#welcome-install-title');
+      const installNote = $('#welcome-install-note');
+      const installHint = $('#welcome-install-hint');
+      const stepsList = $('#welcome-steps');
+      const installBtn = $('#welcome-install-btn');
+      const againBtn = $('#welcome-again');
+      const shareArrow = $('#welcome-share-arrow');
+
+      // Show install instructions tailored to this browser.
+      if (isStandalone) {
+        // Already installed: confirm it, and show how a friend can get it too
+        installTitle.textContent = '✓ Already on your home screen';
+        installNote.hidden = false;
+        stepsList.classList.add('plain');
+        stepsList.innerHTML =
+          `<li><b>iPhone:</b> open the link, tap <b>Share</b> ${SHARE_GLYPH} → <b>Add to Home Screen</b></li>` +
+          '<li><b>Android:</b> use <b>Chrome</b> or <b>Samsung Internet</b>, then tap <b>⋮</b> → <b>Install app</b></li>';
+      } else {
+        let steps;
+        if (isIOSSafari) {
+          steps = [`Tap the <b>Share</b> button ${SHARE_GLYPH} at the bottom of Safari`,
+                   'Scroll down, tap <b>Add to Home Screen</b>',
+                   'Tap <b>Add</b> — done!'];
+        } else if (isIOS) {
+          steps = [`Tap your browser’s <b>Share</b> button ${SHARE_GLYPH} (in Chrome it’s next to the address bar)`,
+                   'Tap <b>Add to Home Screen</b>, then <b>Add</b>'];
+        } else if (isDuckDuckGo) {
+          installNote.hidden = false;
+          installNote.textContent = 'DuckDuckGo saves a browser shortcut, not the full app install.';
+          installHint.hidden = false;
+          installHint.innerHTML = '<b>Why switch?</b> DuckDuckGo can open DoseLog, but Android only gives it a browser shortcut. Chrome and Samsung Internet can install it as a standalone offline app.';
+          steps = ['Copy or reopen this link in <b>Chrome</b> (or <b>Samsung Internet</b> on Samsung phones)',
+                   'Tap the <b>⋮ menu</b> → <b>Install app</b>'];
+        } else if (isAndroid) {
+          if (isBestAndroidInstallBrowser) {
+            installNote.hidden = false;
+            installNote.textContent = 'Android installs it through your browser.';
+            installHint.hidden = false;
+            installHint.innerHTML = '<b>If Android says this app is unsafe:</b> that’s a generic Play Protect message shown for every web app — DoseLog has no account, server, or analytics, and nothing ever leaves your phone. Tap <b>More details → Install anyway</b>. Still blocked? Update <b>Google Play services</b> in the Play Store, or just choose <b>Add to Home screen</b> instead — that always works.';
+            steps = ['Tap <b>Install the app</b> if it appears, or tap the <b>⋮ menu</b>',
+                     'Choose <b>Install app</b>'];
+          } else {
+            installNote.hidden = false;
+            installNote.textContent = 'Some Android browsers only create shortcuts.';
+            installHint.hidden = false;
+            installHint.innerHTML = '<b>Best result:</b> Chrome and Samsung Internet install DoseLog as a standalone offline app. If Android shows an “Unsafe app” warning, that’s a generic Play Protect message for all web apps — tap <b>More details → Install anyway</b>, or use <b>Add to Home screen</b>.';
+            steps = ['For the cleanest install, open this link in <b>Chrome</b> (or <b>Samsung Internet</b> on Samsung phones)',
+                     'Tap the <b>⋮ menu</b> → <b>Install app</b>'];
+          }
+        } else {
+          steps = ['On your phone: visit <b>doselog.github.io</b> and add it to your home screen',
+                   'On a computer: in Chrome or Edge, click the install icon at the right end of the address bar'];
+        }
+        stepsList.innerHTML = steps.map((s) => `<li>${s}</li>`).join('');
+        // Installing is the main event, so closing the welcome is the quiet option
+        startBtn.textContent = 'Maybe later';
+        startBtn.classList.add('welcome-later');
+        // Android with a real install prompt: one-tap button instead of steps
+        if (deferredInstallPrompt) { installBtn.hidden = false; stepsList.hidden = true; }
+      }
+
+      const modal = setupModal(overlay, () => {
+        shareArrow.hidden = true;
+        try { localStorage.setItem(WELCOME_KEY, '1'); } catch {}
+      });
+      function openWelcome() {
+        // Point at Safari's Share button in the bottom toolbar
+        if (isIOSSafari && !isStandalone) shareArrow.hidden = false;
+        modal.open(startBtn);
+      }
+
+      startBtn.addEventListener('click', modal.close);
+
+      // Android: trigger the browser's own install dialog
+      installBtn.addEventListener('click', async () => {
+        const accepted = await triggerInstallPrompt();
+        installBtn.hidden = true;
+        if (accepted) { installSection.hidden = true; modal.close(); }
+        else stepsList.hidden = false;
+      });
+
+      // "Show welcome & install guide" inside the Information dialog
+      againBtn.addEventListener('click', () => {
+        privacyModal.close();
+        openWelcome();
+      });
+
+      // Open automatically on the very first visit only
+      let seen = false;
+      try { seen = localStorage.getItem(WELCOME_KEY) === '1'; } catch {}
+      if (!seen) openWelcome();
+    })();
+
+  </script>
+</body>
+</html>
