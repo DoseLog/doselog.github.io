@@ -835,18 +835,20 @@
       border: 1px solid var(--border); box-shadow: none;
     }
     .welcome-start.welcome-later:hover { background: var(--surface-3); color: var(--text); }
-    /* Bouncing arrow toward Safari's Share button (bottom toolbar) */
+    /* Bouncing arrow toward Safari's Share button (old Safari: centered above
+       the bottom toolbar; iOS 26+ Safari: above the ⋯ menu at the bottom right) */
     .welcome-share-arrow {
       position: fixed; left: 50%; bottom: calc(4px + var(--safe-bottom));
-      transform: translateX(-50%);
+      margin-left: -13px; /* half the arrow's width, so left:50% centers it */
       color: var(--accent-strong); pointer-events: none;
       filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
       animation: share-arrow-bounce 1.3s ease-in-out infinite;
     }
+    .welcome-share-arrow.at-corner { left: auto; right: 42px; margin-left: 0; }
     .welcome-share-arrow[hidden] { display: none; }
     @keyframes share-arrow-bounce {
-      0%, 100% { transform: translate(-50%, -6px); }
-      50% { transform: translate(-50%, 2px); }
+      0%, 100% { transform: translateY(-6px); }
+      50% { transform: translateY(2px); }
     }
     @media (prefers-reduced-motion: reduce) { .welcome-share-arrow { animation: none; } }
 
@@ -1131,8 +1133,9 @@
       </div>
       <button class="btn welcome-start" id="welcome-start">Get started</button>
     </div>
-    <!-- Bouncing arrow pointing at Safari's Share button in the bottom toolbar
-         (shown only in Safari on iPhone while the welcome is open) -->
+    <!-- Bouncing arrow pointing at where Share lives in Safari on iPhone:
+         the bottom toolbar (old Safari) or the ⋯ menu at the bottom right
+         (iOS 26+). Shown only in Safari on iPhone while the welcome is open. -->
     <div class="welcome-share-arrow" id="welcome-share-arrow" hidden aria-hidden="true">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M5 13l7 7 7-7"/></svg>
     </div>
@@ -3091,6 +3094,12 @@
                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     // Real Safari (not Chrome/Firefox/Edge on iOS, which have their own Share menus)
     const isIOSSafari = isIOS && /Safari/i.test(platformUA) && !/CriOS|FxiOS|EdgiOS|Chrome/i.test(platformUA);
+    const isIPhone = /iPhone/i.test(platformUA); // iPad's Safari toolbar sits at the TOP
+    // iOS 26 redesigned Safari: the Share button moved into the "⋯" menu next
+    // to the address bar. (iPads that pretend to be Macs report no version —
+    // they get 0 and fall back to the classic wording, which is fine.)
+    const iosMajor = (platformUA.match(/OS (\d+)_/) || [0, 0])[1] * 1;
+    const isNewSafariUI = isIOSSafari && iosMajor >= 26;
     const isAndroid = /Android/i.test(platformUA);
     const isDuckDuckGo = /DuckDuckGo/i.test(platformUA);
     const isSamsungBrowser = /SamsungBrowser/i.test(platformUA);
@@ -3131,7 +3140,9 @@
 
       if (isStandalone) return; // inside the installed app: never show it
 
-      if (isIOSSafari) {
+      if (isNewSafariUI) {
+        msg.innerHTML = 'Install this app: tap <b>⋯</b> next to the address bar, then <b>Share</b> → <b>"Add&nbsp;to&nbsp;Home&nbsp;Screen"</b>. It will work fully offline.';
+      } else if (isIOSSafari) {
         msg.innerHTML = 'Install this app: tap <b>Share</b> in Safari, then <b>"Add&nbsp;to&nbsp;Home&nbsp;Screen"</b>. It will work fully offline.';
       } else if (isIOS) {
         msg.innerHTML = 'Install this app: tap your browser’s <b>Share</b> button, then <b>"Add&nbsp;to&nbsp;Home&nbsp;Screen"</b>.';
@@ -3195,11 +3206,17 @@
         installNote.hidden = false;
         stepsList.classList.add('plain');
         stepsList.innerHTML =
-          `<li><b>iPhone:</b> open the link, tap <b>Share</b> ${SHARE_GLYPH} → <b>Add to Home Screen</b></li>` +
+          `<li><b>iPhone:</b> open the link in Safari, tap <b>⋯</b> or <b>Share</b> ${SHARE_GLYPH}, then <b>Add to Home Screen</b></li>` +
           '<li><b>Android:</b> use <b>Chrome</b> or <b>Samsung Internet</b>, then tap <b>⋮</b> → <b>Install app</b></li>';
       } else {
         let steps;
-        if (isIOSSafari) {
+        if (isNewSafariUI) {
+          steps = [`Tap the <b>⋯</b> button at the ${isIPhone ? 'bottom' : 'top'} right of Safari`,
+                   `Tap <b>Share</b> ${SHARE_GLYPH}`,
+                   'Scroll down, tap <b>Add to Home Screen</b>, then <b>Add</b> — done!'];
+          installHint.hidden = false;
+          installHint.innerHTML = `No <b>⋯</b> button? Your Safari shows the <b>Share</b> button ${SHARE_GLYPH} directly — tap that instead.`;
+        } else if (isIOSSafari) {
           steps = [`Tap the <b>Share</b> button ${SHARE_GLYPH} at the bottom of Safari`,
                    'Scroll down, tap <b>Add to Home Screen</b>',
                    'Tap <b>Add</b> — done!'];
@@ -3246,8 +3263,12 @@
         try { localStorage.setItem(WELCOME_KEY, '1'); } catch {}
       });
       function openWelcome() {
-        // Point at Safari's Share button in the bottom toolbar
-        if (isIOSSafari && !isStandalone) shareArrow.hidden = false;
+        // Point at where Share lives — only on iPhone Safari, where it's at
+        // the bottom (iPad's toolbar is at the top, so no arrow there).
+        if (isIOSSafari && isIPhone && !isStandalone) {
+          shareArrow.classList.toggle('at-corner', isNewSafariUI);
+          shareArrow.hidden = false;
+        }
         modal.open(startBtn);
       }
 
