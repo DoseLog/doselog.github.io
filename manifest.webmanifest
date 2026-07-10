@@ -1,7 +1,7 @@
 {
   "name": "DoseLog",
   "short_name": "DoseLog",
-  "description": "Track doses and timing easily on any device. All data stays on your device.",
+  "description": "Know what you took, how much, and when. All data stays on your device.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
