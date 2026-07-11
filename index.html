@@ -523,6 +523,12 @@
     }
     .color-option .swatch { width: 18px; height: 18px; }
     .color-option:hover { background: rgba(255,255,255,0.07); }
+    /* Hairline between the base palette and the preset signature looks */
+    .color-menu-sep {
+      grid-column: 1 / -1;
+      height: 1px; margin: 4px 2px;
+      background: var(--border-strong);
+    }
     /* The current colour gets a clear teal ring, not just a faint border */
     .color-option[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
 
@@ -1269,8 +1275,17 @@
     const palette = ['#ef4444','#f59e0b','#eab308','#84cc16','#22c55e','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
     const paletteNames = ['Red','Orange','Yellow','Lime','Green','Teal','Cyan','Blue','Violet','Pink'];
 
+    // Gradient looks, each with a stable key. Preset cards wear one by default,
+    // and any card can pick one from the colour menu (saved as the key in
+    // `drug.blend`). Blends are only visual; the stored colour stays a plain hex.
+    const BLENDS = {
+      'pink-indigo': { name: 'Pink–indigo', type: 'linear', colors: ['#ec4899', '#818cf8'] },
+      'rainbow':     { name: 'Rainbow',     type: 'conic',  colors: ['#8b5cf6', '#38bdf8', '#a3e635', '#facc15', '#f472b6'] },
+      'violet-teal': { name: 'Violet–teal', type: 'linear', colors: ['#8b5cf6', '#2dd4bf'] }
+    };
+
     // Presets power quick-pick chips, default units/colours, and TripSit mapping.
-    // `blend` is only visual; the stored colour remains a plain hex.
+    // `blend` names a BLENDS entry.
     // 3-MMC intentionally has no TripSit mapping because TripSit has not charted it.
     const PRESETS = [
       { name: 'MDMA',       color: '#f97316', unit: 'mg',   ts: 'mdma' },
@@ -1280,12 +1295,9 @@
       { name: '3-MMC',      color: '#fde68a', unit: 'line', ts: null },
       { name: 'Cocaine',    color: '#f4f6f8', unit: 'line', ts: 'cocaine' },
       { name: 'GHB',        color: '#7dd3fc', unit: 'ml',   ts: 'ghb/gbl' },
-      { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',
-        blend: { type: 'linear', colors: ['#ec4899', '#818cf8'] } },
-      { name: 'LSD',        color: '#a3e635', unit: 'µg',   ts: 'lsd',
-        blend: { type: 'conic', colors: ['#8b5cf6', '#38bdf8', '#a3e635', '#facc15', '#f472b6'] } },
-      { name: 'Shrooms',    color: '#8b5cf6', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms',
-        blend: { type: 'linear', colors: ['#8b5cf6', '#2dd4bf'] } },
+      { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',      blend: 'pink-indigo' },
+      { name: 'LSD',        color: '#a3e635', unit: 'µg',   ts: 'lsd',       blend: 'rainbow' },
+      { name: 'Shrooms',    color: '#8b5cf6', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms', blend: 'violet-teal' },
       { name: 'Weed',       color: '#22c55e', unit: 'g',    ts: 'cannabis', wiki: 'Cannabis' },
       { name: 'Alcohol',    color: '#ef4444', unit: 'unit', ts: 'alcohol' }
     ];
@@ -1355,20 +1367,52 @@
       '3-mmc': '#06b6d4', 'cocaine': '#e2e8f0', '2c-b': '#8b5cf6',
       'lsd': '#84cc16', 'shrooms': '#f59e0b'
     };
-    // A blend is only worn while the card still has its signature colour —
-    // picking any other colour in the menu switches back to a flat dot.
+    // Name-based blend: a preset card wears its signature blend while it still
+    // has its signature colour — picking any flat colour switches back to a
+    // flat dot. Hand-picked blends live in `drug.blend` and win over this.
     const blendFor = (name, color) => {
       const p = findPresetLoose(name);
-      return (p && p.blend && color === p.color) ? p.blend : null;
+      return (p && p.blend && color === p.color) ? BLENDS[p.blend] : null;
     };
+    const drugBlend = (d) => BLENDS[d.blend] || blendFor(d.name, d.color);
+    // Entries only snapshot a hex; the blend comes from the live card when
+    // there is one, else from the name so deleted preset cards keep theirs.
+    function blendForEntry(e) {
+      const d = state.drugs.find(d => d.id === e.drugId);
+      if (d) return drugBlend(d);
+      return blendFor(e.drugNameAtEntry, e.colorAtEntry);
+    }
+
+    // Everything the colour menu offers: the base palette first, then every
+    // preset signature look (deduped) so hand-named cards can wear those too.
+    const SIGNATURE_NAMES = {
+      '#f97316': 'Tangerine', '#facc15': 'Gold', '#d97706': 'Amber',
+      '#fde68a': 'Sand', '#f4f6f8': 'White', '#7dd3fc': 'Sky'
+    };
+    const COLOR_OPTIONS = (() => {
+      const flats = palette.map((hex, i) => ({ color: hex, name: paletteNames[i] }));
+      const blends = [];
+      const seen = new Set(palette);
+      for (const p of PRESETS) {
+        if (p.blend) {
+          if (!blends.some(o => o.blend === p.blend))
+            blends.push({ blend: p.blend, color: p.color, name: BLENDS[p.blend].name });
+        } else if (!seen.has(p.color)) {
+          seen.add(p.color);
+          flats.push({ color: p.color, name: SIGNATURE_NAMES[p.color] || p.name });
+        }
+      }
+      return flats.concat(blends);
+    })();
+    // Options past the base palette sit behind a divider in the menu.
+    const PALETTE_COUNT = palette.length;
     // Dots use the full blend; card strips lay it out left-to-right.
     const blendDotCss = (b) => b.type === 'conic'
       ? `conic-gradient(from 210deg, ${b.colors.join(', ')}, ${b.colors[0]})`
       : `linear-gradient(135deg, ${b.colors.join(', ')})`;
     const blendStripCss = (b) => `linear-gradient(90deg, ${b.colors.join(', ')})`;
-    // Canvas version of preset blends; older engines fall back to flat colour.
-    function blendCanvasFill(ctx, x, y, r, name, color) {
-      const b = blendFor(name, color);
+    // Canvas version of the blends; older engines fall back to flat colour.
+    function blendCanvasFill(ctx, x, y, r, b, color) {
       if (!b) return color;
       if (b.type === 'conic') {
         if (!ctx.createConicGradient) return color;
@@ -1485,6 +1529,7 @@
             const p = findPreset(d.name);
             if (p) d.color = p.color;
           }
+          if (d.blend && !BLENDS[d.blend]) delete d.blend; // unknown blend key → flat dot
           if (typeof d.expanded === 'undefined') d.expanded = false; // Default to collapsed
         });
         return parsed;
@@ -1612,7 +1657,7 @@
     function openWikiDialog(preset) {
       // "Speed (Amphetamine)" when the article is named differently
       $('#wiki-name').textContent = preset.wiki ? `${preset.name} (${preset.wiki})` : preset.name;
-      $('#wiki-dot').style.background = preset.blend ? blendDotCss(preset.blend) : preset.color;
+      $('#wiki-dot').style.background = preset.blend ? blendDotCss(BLENDS[preset.blend]) : preset.color;
       wikiOpenLink.href = presetWikiUrl(preset);
       wikiModal.open($('#wiki-cancel'));
     }
@@ -1650,7 +1695,7 @@
         chip.setAttribute('aria-pressed', String(sel));
         const dot = document.createElement('span');
         dot.className = 'dot';
-        dot.style.background = g.blend ? blendDotCss(g.blend) : g.color;
+        dot.style.background = g.blend ? blendDotCss(BLENDS[g.blend]) : g.color;
         chip.appendChild(dot);
         chip.appendChild(document.createTextNode(g.label));
         const tick = document.createElement('span');
@@ -1941,6 +1986,7 @@
         totalDrugs.push({
           name: lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug',
           color: colorForEntry(e) || '#56c1ab',
+          blend: blendForEntry(e),
           label: totalsForDrugLabel(e.drugId)
         });
       }
@@ -1998,9 +2044,9 @@
           const cy = y + ROW_H / 2;
           const name = lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug';
 
-          // Colour dot + drug name; preset blends are preserved.
+          // Colour dot + drug name; blends are preserved.
           const dotColor = colorForEntry(e) || '#56c1ab';
-          ctx.fillStyle = blendCanvasFill(ctx, PAD + 5, cy, 5, name, dotColor);
+          ctx.fillStyle = blendCanvasFill(ctx, PAD + 5, cy, 5, blendForEntry(e), dotColor);
           ctx.beginPath();
           ctx.arc(PAD + 5, cy, 5, 0, Math.PI * 2);
           ctx.fill();
@@ -2045,7 +2091,7 @@
       for (const t of totalDrugs) {
         const cy = y + ROW_H / 2;
 
-        ctx.fillStyle = blendCanvasFill(ctx, PAD + 5, cy, 5, t.name, t.color);
+        ctx.fillStyle = blendCanvasFill(ctx, PAD + 5, cy, 5, t.blend, t.color);
         ctx.beginPath();
         ctx.arc(PAD + 5, cy, 5, 0, Math.PI * 2);
         ctx.fill();
@@ -2105,8 +2151,8 @@
 
         const strip = document.createElement('div');
         strip.className = 'color-strip';
-        // Preset blends appear on the strip and colour dot.
-        const cardBlend = blendFor(drug.name, drug.color);
+        // Blends (preset or hand-picked) appear on the strip and colour dot.
+        const cardBlend = drugBlend(drug);
         strip.style.background = cardBlend ? blendStripCss(cardBlend) : drug.color;
         card.appendChild(strip);
 
@@ -2163,7 +2209,7 @@
             chip.className = 'preset-chip';
             const dot = document.createElement('span');
             dot.className = 'dot';
-            dot.style.background = p.blend ? blendDotCss(p.blend) : p.color;
+            dot.style.background = p.blend ? blendDotCss(BLENDS[p.blend]) : p.color;
             chip.appendChild(dot);
             chip.appendChild(document.createTextNode(p.name));
             // Keep the title focused on desktop so a click feels seamless
@@ -2175,6 +2221,7 @@
               nameInput.blur();
               drug.name = p.name;
               drug.color = p.color;
+              if (p.blend) drug.blend = p.blend; else delete drug.blend;
               drug.lastUnit = p.unit; // the dose row's unit picker reads this
               saveState();
               render();
@@ -2268,8 +2315,10 @@
         colorBtn.type = 'button';
         colorBtn.className = 'color-dot-btn';
         colorBtn.style.setProperty('--swatch', cardBlend ? blendDotCss(cardBlend) : drug.color);
-        const colorName = paletteNames[palette.indexOf(drug.color)] || 'Custom';
-        colorBtn.setAttribute('aria-label', `Color: ${colorName}`);
+        const currentOpt = COLOR_OPTIONS.find(c => c.blend
+          ? BLENDS[c.blend] === cardBlend
+          : (!cardBlend && c.color === drug.color));
+        colorBtn.setAttribute('aria-label', `Color: ${currentOpt ? currentOpt.name : 'Custom'}`);
         colorBtn.setAttribute('aria-haspopup', 'listbox');
         colorBtn.setAttribute('aria-expanded', 'false');
         colorBtn.innerHTML = '<span class="swatch"></span>';
@@ -2279,17 +2328,27 @@
         menu.setAttribute('role', 'listbox');
         menu.setAttribute('aria-label', 'Card color');
 
-        palette.forEach((hex, i) => {
+        COLOR_OPTIONS.forEach((c, i) => {
+          // Hairline between the base palette and the preset signature looks.
+          if (i === PALETTE_COUNT) {
+            const sep = document.createElement('div');
+            sep.className = 'color-menu-sep';
+            sep.setAttribute('aria-hidden', 'true');
+            menu.appendChild(sep);
+          }
+          const b = c.blend ? BLENDS[c.blend] : null;
           const opt = document.createElement('div');
           opt.className = 'color-option';
           opt.setAttribute('role', 'option');
-          opt.setAttribute('aria-label', paletteNames[i]);
-          opt.title = paletteNames[i];
-          opt.innerHTML = `<span class="swatch" style="--swatch:${hex}"></span>`;
-          if (hex === drug.color) opt.setAttribute('aria-selected', 'true');
+          opt.setAttribute('aria-label', c.name);
+          opt.title = c.name;
+          opt.innerHTML = `<span class="swatch" style="--swatch:${b ? blendDotCss(b) : c.color}"></span>`;
+          const selected = b ? cardBlend === b : (!cardBlend && c.color === drug.color);
+          if (selected) opt.setAttribute('aria-selected', 'true');
           opt.addEventListener('click', (ev) => {
             ev.stopPropagation(); ev.preventDefault();
-            drug.color = hex;
+            drug.color = c.color;
+            if (c.blend) drug.blend = c.blend; else delete drug.blend;
             saveState();
             render(); // rebuilds cards + log with the new colour (this also closes the menu)
           });
@@ -2576,10 +2635,12 @@
               nameInput.value = preset.name;
             }
             drug.color = preset.color;
+            if (preset.blend) drug.blend = preset.blend; else delete drug.blend;
             drug.lastUnit = preset.unit;
             unitSelect.value = preset.unit;
-            colorBtn.style.setProperty('--swatch', preset.blend ? blendDotCss(preset.blend) : drug.color);
-            strip.style.background = preset.blend ? blendStripCss(preset.blend) : drug.color;
+            const pb = preset.blend ? BLENDS[preset.blend] : null;
+            colorBtn.style.setProperty('--swatch', pb ? blendDotCss(pb) : drug.color);
+            strip.style.background = pb ? blendStripCss(pb) : drug.color;
             card.style.borderColor = hexToRgba(drug.color, 0.28);
             card.style.background =
               `linear-gradient(180deg, ${hexToRgba(drug.color, 0.06)} 0%, rgba(0,0,0,0) 96px), ` +
