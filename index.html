@@ -2719,8 +2719,19 @@
           const chip = document.createElement('span');
           chip.className = 'drug-chip';
           const bg = colorForEntry(e) || '#56c1ab';
-          chip.style.background = hexToRgba(bg, 0.16);
-          chip.style.borderColor = hexToRgba(bg, 0.38);
+          const chipBlend = blendForEntry(e);
+          if (chipBlend) {
+            // Faded copy of the card strip's gradient; the border-box layer
+            // gives the ring the same sweep without breaking the pill radius.
+            const wash = chipBlend.colors.map(c => hexToRgba(c, 0.18)).join(', ');
+            const ring = chipBlend.colors.map(c => hexToRgba(c, 0.48)).join(', ');
+            chip.style.background =
+              `linear-gradient(90deg, ${wash}) padding-box, linear-gradient(90deg, ${ring}) border-box`;
+            chip.style.borderColor = 'transparent';
+          } else {
+            chip.style.background = hexToRgba(bg, 0.16);
+            chip.style.borderColor = hexToRgba(bg, 0.38);
+          }
           const nameSpan = document.createElement('span');
           nameSpan.textContent = lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug';
           chip.appendChild(nameSpan);
