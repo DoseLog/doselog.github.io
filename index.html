@@ -422,6 +422,12 @@
       font-size: 14px; font-weight: 550; color: var(--muted);
       font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
     }
+    /* Small clock time under the big interval — the same fact both ways
+       ("1 h 14 min ago" / "Taken at 00:35") for cross-checking. */
+    .meta .taken-at {
+      font-size: 12px; color: var(--faint);
+      font-variant-numeric: tabular-nums; margin-top: 1px;
+    }
 
     /* ===== Smooth collapse/expand ===== */
     .card-collapse {
@@ -805,8 +811,10 @@
     .welcome-emblem svg { width: 42px; height: 42px; }
     .welcome h2 { margin: 0 0 4px; font-size: 21px; font-weight: 750; letter-spacing: -0.02em; }
     .welcome-tagline { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    /* Secondary to the Start button above it — installing is optional,
+       never the price of entry. */
     .welcome-install {
-      text-align: left; margin-bottom: 12px;
+      text-align: left; margin: 14px 0 0;
       background: var(--accent-soft); border: 1px solid var(--accent-border);
       border-radius: var(--radius-sm); padding: 10px 12px 12px;
     }
@@ -846,12 +854,6 @@
       box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 28%, transparent);
     }
     .welcome-start:hover { background: var(--accent-strong); }
-    /* Quieter "Maybe later" look when installing is the main action */
-    .welcome-start.welcome-later {
-      background: var(--surface-2); color: var(--muted); font-weight: 600;
-      border: 1px solid var(--border); box-shadow: none;
-    }
-    .welcome-start.welcome-later:hover { background: var(--surface-3); color: var(--text); }
     /* Bouncing arrow toward Safari's Share button (old Safari: centered above
        the bottom toolbar; iOS 26+ Safari: above the ⋯ menu at the bottom right) */
     .welcome-share-arrow {
@@ -1038,8 +1040,8 @@
 
     <!-- Always-visible trust line; the full story is in the Information dialog. -->
     <p class="trust-line">
-      <span class="trust-main">DoseLog is a free, community&#8209;maintained harm&#8209;reduction project.</span>
-      <span class="trust-tags">anonymous · open-source · fully offline</span>
+      <span class="trust-main">DoseLog is a free, independent harm&#8209;reduction project.</span>
+      <span class="trust-tags">anonymous · open-source · works offline</span>
     </p>
   </div>
 
@@ -1150,14 +1152,15 @@
       </div>
       <h2 id="welcome-title">Welcome to DoseLog</h2>
       <p class="welcome-tagline">A simple, private way to keep track of what you take and when.</p>
+      <!-- Logging comes first; installing is the optional step below it. -->
+      <button class="btn welcome-start" id="welcome-start">Start logging</button>
       <div class="welcome-install" id="welcome-install">
-        <h3 class="welcome-install-title" id="welcome-install-title">Get it on your home screen</h3>
+        <h3 class="welcome-install-title" id="welcome-install-title">Install for offline use</h3>
         <p class="welcome-install-note" id="welcome-install-note" hidden>A friend can install it too:</p>
         <button class="btn" id="welcome-install-btn" hidden>Install the app</button>
         <ol class="welcome-steps" id="welcome-steps"></ol>
         <p class="welcome-install-hint" id="welcome-install-hint" hidden></p>
       </div>
-      <button class="btn welcome-start" id="welcome-start">Get started</button>
     </div>
     <!-- Bouncing arrow pointing at where Share lives in Safari on iPhone:
          the bottom toolbar (old Safari) or the ⋯ menu at the bottom right
@@ -1612,23 +1615,52 @@
     const snackbarAction = $('#snackbar-action');
     let toastTimer = null;
     let toastActionFn = null;
-    // Optional Undo action for immediate, reversible deletions.
-    function showToast(message, duration=2500, actionLabel=null, onAction=null) {
+    // Pending Undos wait on a small stack so a routine message can't bury
+    // them: when the visible toast ends, the newest still-valid Undo comes
+    // back for its remaining seconds — and after one Undo is used, the one
+    // before it (if any) gets its turn.
+    let undoStack = []; // { message, label, fn, expiresAt }
+
+    function displayToast(message, actionLabel, onAction, ms) {
       if (toastTimer) clearTimeout(toastTimer);
       snackbarMsg.textContent = message;
       toastActionFn = (actionLabel && onAction) ? onAction : null;
       if (toastActionFn) { snackbarAction.textContent = actionLabel; snackbarAction.hidden = false; }
       else { snackbarAction.hidden = true; }
       snackbar.classList.add('show');
-      toastTimer = setTimeout(hideToast, duration);
+      toastTimer = setTimeout(hideToast, ms);
     }
+
+    function showToast(message, duration=2500, actionLabel=null, onAction=null) {
+      if (actionLabel && onAction) {
+        undoStack.push({ message, label: actionLabel, fn: onAction, expiresAt: Date.now() + duration });
+        if (undoStack.length > 4) undoStack.shift(); // plenty for one pair of hands
+      }
+      displayToast(message, actionLabel, onAction, duration);
+    }
+
+    // Newest Undo still worth showing, dropping expired ones on the way.
+    function nextUndo() {
+      while (undoStack.length) {
+        const top = undoStack[undoStack.length - 1];
+        if (top.expiresAt - Date.now() > 400) return top;
+        undoStack.pop();
+      }
+      return null;
+    }
+
     function hideToast() {
       if (toastTimer) clearTimeout(toastTimer);
       snackbar.classList.remove('show');
       toastTimer = null; toastActionFn = null;
+      const pending = nextUndo();
+      if (pending) displayToast(pending.message, pending.label, pending.fn, pending.expiresAt - Date.now());
     }
+
     snackbarAction.addEventListener('click', () => {
       const fn = toastActionFn;
+      // Consume the entry being undone before revealing the one beneath it.
+      if (fn && undoStack.length && undoStack[undoStack.length - 1].fn === fn) undoStack.pop();
       hideToast();
       if (fn) fn();
     });
@@ -1903,6 +1935,7 @@
       const ok = await openConfirm('This will permanently delete all substances and log entries. Proceed?');
       if (ok) {
         state = structuredClone(initialState);
+        undoStack = []; // a full reset was confirmed — old Undos must not resurface
         saveState();
         render();
         showToast('Everything reset.');
@@ -2450,8 +2483,13 @@
         lastSpan.className = 'last';
         lastSpan.id = `last-${drug.id}`;
         lastSpan.textContent = '—';
+        // The clock time as well — people remember "I took it at 00:35".
+        const takenSpan = document.createElement('span');
+        takenSpan.className = 'taken-at';
+        takenSpan.id = `taken-${drug.id}`;
         lastBlock.appendChild(lastLabel);
         lastBlock.appendChild(lastSpan);
+        lastBlock.appendChild(takenSpan);
 
         const totalBlock = document.createElement('div');
         totalBlock.className = 'meta-block';
@@ -2951,7 +2989,15 @@
       state.drugs.forEach(d => {
         const el = document.getElementById(`last-${d.id}`);
         if (!el) return;
-        el.textContent = formatSinceLabel(lastDoseDate(d.id));
+        const when = lastDoseDate(d.id);
+        el.textContent = formatSinceLabel(when);
+        // Clock time under the interval; a date joins it after midnight.
+        const takenEl = document.getElementById(`taken-${d.id}`);
+        if (takenEl) {
+          takenEl.textContent = !when ? '' : (dayKey(when) === dayKey(new Date())
+            ? `Taken at ${timeStr(when)}`
+            : `Taken ${dateLabel(when)}, ${timeStr(when)}`);
+        }
         fitLastDoseLabel(el);
       });
     }
@@ -3020,14 +3066,13 @@
 
       if (numInput) numInput.value = '';
       render();
-      // Mention the day when it isn't today, e.g. a time rolled back to
-      // yesterday because it was later than now.
+      // Always confirm WITH the time — glanceable proof the stamp is right.
+      // The day joins in when it isn't today (a time rolled back to
+      // yesterday because it was later than now).
       const when = dayKey(ts) === dayKey(new Date())
         ? timeStr(ts) : `${dateLabel(ts)}, ${timeStr(ts)}`;
       // Undoable like deletions are — a stray tap on Repeat logs a real dose.
-      showToast(tsOverride
-        ? `Added ${dosageText} of ${currentDrugName} at ${when}`
-        : `Added ${dosageText} of ${currentDrugName}`,
+      showToast(`Added ${dosageText} of ${currentDrugName} · ${when}`,
         6000, 'Undo', () => {
           const i = state.entries.findIndex(x => x.id === entry.id);
           if (i >= 0) { state.entries.splice(i, 1); saveState(); render(); }
@@ -3404,9 +3449,6 @@
                    'On a computer: in Chrome or Edge, click the install icon at the right end of the address bar'];
         }
         stepsList.innerHTML = steps.map((s) => `<li>${s}</li>`).join('');
-        // Installing is the main event, so closing the welcome is the quiet option
-        startBtn.textContent = 'Maybe later';
-        startBtn.classList.add('welcome-later');
         // Android with a real install prompt: one-tap button instead of steps
         if (deferredInstallPrompt) { installBtn.hidden = false; stepsList.hidden = true; }
       }
