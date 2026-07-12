@@ -1272,16 +1272,27 @@
       { value: 'drop', label: 'drop' }
     ];
 
-    const palette = ['#ef4444','#f59e0b','#eab308','#84cc16','#22c55e','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
-    const paletteNames = ['Red','Orange','Yellow','Lime','Green','Teal','Cyan','Blue','Violet','Pink'];
+    // The flat colours on offer: every preset's signature colour plus a few
+    // extras picked to be clearly different from them — no near-duplicates.
+    // Ordered by hue so the menu reads as one sweep (3 rows of 5).
+    const palette = [
+      '#ef4444','#f97316','#d97706','#facc15','#fde68a',
+      '#84cc16','#22c55e','#14b8a6','#06b6d4','#7dd3fc',
+      '#3b82f6','#8b5cf6','#ec4899','#94a3b8','#f4f6f8'
+    ];
+    const paletteNames = [
+      'Red','Tangerine','Amber','Gold','Sand',
+      'Lime','Green','Teal','Cyan','Sky',
+      'Blue','Violet','Pink','Slate','White'
+    ];
 
     // Gradient looks, each with a stable key. Preset cards wear one by default,
     // and any card can pick one from the colour menu (saved as the key in
     // `drug.blend`). Blends are only visual; the stored colour stays a plain hex.
     const BLENDS = {
-      'pink-indigo': { name: 'Pink–indigo', type: 'linear', colors: ['#ec4899', '#818cf8'] },
-      'rainbow':     { name: 'Rainbow',     type: 'conic',  colors: ['#8b5cf6', '#38bdf8', '#a3e635', '#facc15', '#f472b6'] },
-      'violet-teal': { name: 'Violet–teal', type: 'linear', colors: ['#8b5cf6', '#2dd4bf'] }
+      'candy':   { name: 'Candy swirl',  type: 'conic', colors: ['#f472b6', '#a78bfa', '#38bdf8', '#e879f9'] },
+      'rainbow': { name: 'Rainbow',      type: 'conic', colors: ['#8b5cf6', '#38bdf8', '#a3e635', '#facc15', '#f472b6'] },
+      'forest':  { name: 'Forest swirl', type: 'conic', colors: ['#fbbf24', '#84cc16', '#14b8a6', '#d97706'] }
     };
 
     // Presets power quick-pick chips, default units/colours, and TripSit mapping.
@@ -1295,9 +1306,9 @@
       { name: '3-MMC',      color: '#fde68a', unit: 'line', ts: null },
       { name: 'Cocaine',    color: '#f4f6f8', unit: 'line', ts: 'cocaine' },
       { name: 'GHB',        color: '#7dd3fc', unit: 'ml',   ts: 'ghb/gbl' },
-      { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',      blend: 'pink-indigo' },
+      { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',      blend: 'candy' },
       { name: 'LSD',        color: '#a3e635', unit: 'µg',   ts: 'lsd',       blend: 'rainbow' },
-      { name: 'Shrooms',    color: '#8b5cf6', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms', blend: 'violet-teal' },
+      { name: 'Shrooms',    color: '#f59e0b', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms', blend: 'forest' },
       { name: 'Weed',       color: '#22c55e', unit: 'g',    ts: 'cannabis', wiki: 'Cannabis' },
       { name: 'Alcohol',    color: '#ef4444', unit: 'unit', ts: 'alcohol' }
     ];
@@ -1361,11 +1372,13 @@
       }
       return best;
     }
-    // Old preset defaults used to migrate untouched cards after the repaint.
+    // Old preset defaults used to migrate untouched cards after a repaint.
+    // Shrooms' entry is the 2026-07-08 violet (its even older amber default
+    // equals the current colour again, so those cards need no migration).
     const OLD_PRESET_COLORS = {
       'mdma': '#ec4899', 'speed': '#eab308', 'mephedrone': '#10b981',
       '3-mmc': '#06b6d4', 'cocaine': '#e2e8f0', '2c-b': '#8b5cf6',
-      'lsd': '#84cc16', 'shrooms': '#f59e0b'
+      'lsd': '#84cc16', 'shrooms': '#8b5cf6'
     };
     // Name-based blend: a preset card wears its signature blend while it still
     // has its signature colour — picking any flat colour switches back to a
@@ -1383,28 +1396,15 @@
       return blendFor(e.drugNameAtEntry, e.colorAtEntry);
     }
 
-    // Everything the colour menu offers: the base palette first, then every
-    // preset signature look (deduped) so hand-named cards can wear those too.
-    const SIGNATURE_NAMES = {
-      '#f97316': 'Tangerine', '#facc15': 'Gold', '#d97706': 'Amber',
-      '#fde68a': 'Sand', '#f4f6f8': 'White', '#7dd3fc': 'Sky'
-    };
-    const COLOR_OPTIONS = (() => {
-      const flats = palette.map((hex, i) => ({ color: hex, name: paletteNames[i] }));
-      const blends = [];
-      const seen = new Set(palette);
-      for (const p of PRESETS) {
-        if (p.blend) {
-          if (!blends.some(o => o.blend === p.blend))
-            blends.push({ blend: p.blend, color: p.color, name: BLENDS[p.blend].name });
-        } else if (!seen.has(p.color)) {
-          seen.add(p.color);
-          flats.push({ color: p.color, name: SIGNATURE_NAMES[p.color] || p.name });
-        }
-      }
-      return flats.concat(blends);
-    })();
-    // Options past the base palette sit behind a divider in the menu.
+    // Everything the colour menu offers: the flat palette (which already
+    // includes every preset's flat signature colour), then the preset swirls
+    // so hand-named cards can wear those too.
+    const COLOR_OPTIONS = [
+      ...palette.map((hex, i) => ({ color: hex, name: paletteNames[i] })),
+      ...PRESETS.filter(p => p.blend)
+        .map(p => ({ blend: p.blend, color: p.color, name: BLENDS[p.blend].name }))
+    ];
+    // Options past the flat palette sit behind a divider in the menu.
     const PALETTE_COUNT = palette.length;
     // Dots use the full blend; card strips lay it out left-to-right.
     const blendDotCss = (b) => b.type === 'conic'
@@ -1529,6 +1529,9 @@
             const p = findPreset(d.name);
             if (p) d.color = p.color;
           }
+          // 2026-07-12 swirl repaint renamed two hand-pickable blend keys.
+          if (d.blend === 'pink-indigo') d.blend = 'candy';
+          if (d.blend === 'violet-teal') d.blend = 'forest';
           if (d.blend && !BLENDS[d.blend]) delete d.blend; // unknown blend key → flat dot
           if (typeof d.expanded === 'undefined') d.expanded = false; // Default to collapsed
         });
