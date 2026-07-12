@@ -53,6 +53,7 @@ Once installed it launches fullscreen from your home screen and works with no in
 - No framework, no build step, no dependencies, no CDN calls
 - A small service worker (`sw.js`) for offline caching
 - Hosted on GitHub Pages
+- Open source under the [MIT License](LICENSE)
 
 ## Contact
 
