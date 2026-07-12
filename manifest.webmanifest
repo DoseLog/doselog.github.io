@@ -2,10 +2,10 @@
   "name": "DoseLog",
   "short_name": "DoseLog",
   "description": "Your memory gets hazy. This doesn’t. All data stays on your device.",
+  "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#0f1216",
   "theme_color": "#0f1216",
   "icons": [
