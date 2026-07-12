@@ -206,6 +206,13 @@
     .footer-link:hover { color: var(--muted); }
     .footer-link-danger:hover { color: var(--danger); }
     .footer-sep { color: var(--faint); font-size: 13px; }
+    /* Quiet trust line under the footer — subtle, but always on the page. */
+    .trust-line {
+      margin: 6px 0 0; text-align: center;
+      color: var(--faint); font-size: 12px; line-height: 1.7;
+    }
+    .trust-line .trust-main { display: block; text-wrap: balance; }
+    .trust-line .trust-tags { display: block; font-size: 11.5px; opacity: 0.85; letter-spacing: 0.02em; }
 
     /* Visible keyboard-focus ring everywhere */
     button:focus-visible, a:focus-visible {
@@ -1021,6 +1028,12 @@
       <span class="footer-sep" aria-hidden="true">·</span>
       <button id="reset-all" class="footer-link footer-link-danger" title="Clear drugs and entries">Reset everything</button>
     </footer>
+
+    <!-- Always-visible trust line; the full story is in the Information dialog. -->
+    <p class="trust-line">
+      <span class="trust-main">DoseLog is a free, community&#8209;maintained harm&#8209;reduction project.</span>
+      <span class="trust-tags">anonymous · open-source · fully offline</span>
+    </p>
   </div>
 
   <!-- Install hint banner for browser-tab use. -->
