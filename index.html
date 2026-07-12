@@ -3276,6 +3276,17 @@
           console.warn('Service worker registration failed:', err);
         });
       });
+
+      // A fresh version can finish installing while the app is open; the
+      // page on screen stays the old one until a reload. Say so — quietly.
+      // Never reload automatically: someone may be mid-dose. On a first
+      // visit the very first worker also takes control; that is not an
+      // update, hence the hadController guard.
+      let hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController) { hadController = true; return; }
+        showToast('DoseLog was updated.', 15000, 'Reload', () => location.reload());
+      });
     }
 
     // Ask the browser to protect saved data from automatic cleanup.
