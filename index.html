@@ -191,6 +191,21 @@
       box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 40%, transparent);
     }
 
+    /* Destructive actions use a muted rose treatment instead of alarm red. */
+    #reset-all, .card-remove-btn {
+      color: color-mix(in srgb, var(--danger) 68%, var(--muted));
+      border-color: rgba(239,110,102,0.25);
+      background: rgba(239,110,102,0.07);
+      box-shadow: none;
+    }
+    #reset-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    #reset-all:hover, .card-remove-btn:hover { background: rgba(239,110,102,0.14); }
+    #reset-all svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
     /* ===== Page footer (rarely-used actions) ===== */
     .page-footer {
       margin-top: 28px;
@@ -199,13 +214,11 @@
     }
     .footer-link {
       background: transparent; border: none; padding: 10px 6px;
-      color: var(--faint); font-family: inherit; font-size: 13px; font-weight: 500;
+      color: var(--faint); font-family: inherit; font-size: 14px; font-weight: 500;
       text-decoration: underline; text-underline-offset: 3px;
       cursor: pointer; border-radius: 8px;
     }
     .footer-link:hover { color: var(--muted); }
-    .footer-link-danger:hover { color: var(--danger); }
-    .footer-sep { color: var(--faint); font-size: 13px; }
     /* Quiet trust line under the footer — subtle, but always on the page. */
     .trust-line {
       margin: 22px 0 0; text-align: center;
@@ -576,12 +589,12 @@
     .clear-log-btn:hover { color: var(--danger); background: var(--danger-soft); }
 
     /* Friendly accent actions. */
-    #share-log, #share-send, #fresh-clear, #wiki-open, #combo-show {
+    #share-log, #share-send, #wiki-open, #combo-show {
       color: var(--accent-strong);
       border-color: var(--accent-border);
       background: var(--accent-soft);
     }
-    #share-log:hover, #share-send:hover, #fresh-clear:hover, #wiki-open:hover, #combo-show:hover { background: rgba(86,193,171,0.22); }
+    #share-log:hover, #share-send:hover, #wiki-open:hover, #combo-show:hover { background: rgba(86,193,171,0.22); }
 
     .log-header h3 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
     .controls { display: flex; gap: 8px; }
@@ -1001,6 +1014,12 @@
       <div class="toolbar-group">
         <button id="add-med">+ Add substance</button>
       </div>
+      <div class="toolbar-group">
+        <button id="reset-all" title="Permanently delete all substances and log entries">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          <span>Reset everything</span>
+        </button>
+      </div>
     </div>
 
     <section class="grid" id="drug-grid" aria-label="Substances"></section>
@@ -1031,11 +1050,9 @@
       </table>
     </section>
 
-    <!-- Quiet footer for rarely-used actions. -->
+    <!-- Quiet footer for secondary information. -->
     <footer class="page-footer">
       <button id="privacy-open" class="footer-link" aria-haspopup="dialog" aria-controls="privacy">Information</button>
-      <span class="footer-sep" aria-hidden="true">·</span>
-      <button id="reset-all" class="footer-link footer-link-danger" title="Clear drugs and entries">Reset everything</button>
     </footer>
 
     <!-- Always-visible trust line; the full story is in the Information dialog. -->
@@ -1068,8 +1085,8 @@
       <h4 id="confirm-title">Please confirm</h4>
       <p id="confirm-msg">Are you sure you want to proceed?</p>
       <div class="actions">
-        <button class="btn btn-ghost" id="confirm-no" autofocus>No</button>
-        <button class="btn btn-danger" id="confirm-yes">Yes</button>
+        <button class="btn btn-ghost" id="confirm-no" autofocus>Cancel</button>
+        <button class="btn btn-danger" id="confirm-yes">Reset everything</button>
       </div>
     </div>
   </div>
@@ -1113,10 +1130,10 @@
   <div id="fresh-start" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fresh-title" style="display:none;">
     <div class="modal" role="document">
       <h4 id="fresh-title">Welcome back</h4>
-      <p id="fresh-msg">Your log still has entries from a previous night. Start fresh, or keep them?</p>
+      <p id="fresh-msg">Your log still has entries from a previous night. Reset all substances and entries, or keep everything?</p>
       <div class="actions">
-        <button class="btn btn-ghost" id="fresh-keep">Keep them</button>
-        <button class="btn" id="fresh-clear">Start fresh</button>
+        <button class="btn btn-ghost" id="fresh-keep">Keep everything</button>
+        <button class="btn btn-danger" id="fresh-clear">Reset everything</button>
       </div>
     </div>
   </div>
@@ -1272,7 +1289,7 @@
       return raw.toLowerCase();
     }
 
-    const PLURALS = { pill: ['pill', 'pills'], tab: ['tab', 'tabs'], line: ['line', 'lines'], drop: ['drop', 'drops'], unit: ['unit', 'units'] };
+    const PLURALS = { pill: ['pill', 'pills'], tab: ['tab', 'tabs'], line: ['line', 'lines'], hit: ['hit', 'hits'], drink: ['drink', 'drinks'], drop: ['drop', 'drops'], unit: ['unit', 'units'] };
 
     function displayValueUnit(value, unit) {
       if (!unit) return fmtNumber(value);
@@ -1284,15 +1301,15 @@
 
     const UNIT_OPTIONS = [
       { value: 'mg', label: 'mg' },
+      { value: 'line', label: 'line' },
+      { value: 'pill', label: 'pill' },
+      { value: 'hit', label: 'hit' },
       { value: 'g', label: 'g' },
       { value: 'µg', label: 'µg' },
-      { value: 'pill', label: 'pill' },
       { value: 'tab', label: 'tab' },
-      { value: 'line', label: 'line' },
-      { value: 'unit', label: 'unit' },
       { value: 'ml', label: 'ml' },
-      { value: 'l', label: 'l' },
-      { value: 'drop', label: 'drop' }
+      { value: 'drink', label: 'drink' },
+      { value: 'unit', label: 'unit' }
     ];
 
     // The flat colours on offer: every preset's signature colour plus a few
@@ -1332,8 +1349,8 @@
       { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',      blend: 'candy' },
       { name: 'LSD',        color: '#a3e635', unit: 'µg',   ts: 'lsd',       blend: 'rainbow' },
       { name: 'Shrooms',    color: '#f59e0b', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms', blend: 'forest' },
-      { name: 'Weed',       color: '#22c55e', unit: 'g',    ts: 'cannabis', wiki: 'Cannabis' },
-      { name: 'Alcohol',    color: '#ef4444', unit: 'unit', ts: 'alcohol' }
+      { name: 'Weed',       color: '#22c55e', unit: 'hit',  ts: 'cannabis', wiki: 'Cannabis' },
+      { name: 'Alcohol',    color: '#ef4444', unit: 'drink', ts: 'alcohol' }
     ];
     const findPreset = (name) => PRESETS.find(p => nameKey(p.name) === nameKey(name));
     // Default name for freshly added cards ("New substance", "New substance 2").
@@ -1526,6 +1543,15 @@
         const opt = document.createElement('option');
         opt.value = u.value; opt.textContent = u.label;
         sel.appendChild(opt);
+      }
+      // Keep an old saved unit readable without putting retired choices back
+      // into the menu for new doses.
+      if (value && !UNIT_OPTIONS.some(u => u.value === value)) {
+        const legacy = document.createElement('option');
+        legacy.value = value;
+        legacy.textContent = normalizeUnit(value);
+        legacy.hidden = true;
+        sel.appendChild(legacy);
       }
       sel.value = value;
       return sel;
@@ -1930,16 +1956,22 @@
       input.addEventListener('blur', () => { if (padTarget === input) closeNumpad(); });
     }
 
+    // Every full-reset path uses this one operation, so none can leave old
+    // substance cards or Undos behind.
+    function resetEverything() {
+      state = structuredClone(initialState);
+      editingId = null;
+      undoStack = [];
+      closeNumpad();
+      saveState();
+      render();
+      showToast('Everything reset.');
+    }
+
     // Reset Everything Button
     $('#reset-all').addEventListener('click', async () => {
-      const ok = await openConfirm('This will permanently delete all substances and log entries. Proceed?');
-      if (ok) {
-        state = structuredClone(initialState);
-        undoStack = []; // a full reset was confirmed — old Undos must not resurface
-        saveState();
-        render();
-        showToast('Everything reset.');
-      }
+      const ok = await openConfirm('This permanently deletes all substances and log entries. This cannot be undone.');
+      if (ok) resetEverything();
     });
 
     // --- Share with a Friend ---
@@ -2739,7 +2771,7 @@
         // Remove lives away from Add and is undoable from the toast.
         const removeLink = document.createElement('button');
         removeLink.type = 'button';
-        removeLink.className = 'btn-sm btn-danger';
+        removeLink.className = 'btn-sm card-remove-btn';
         removeLink.textContent = 'Remove';
         removeLink.onclick = () => {
           const idx = state.drugs.findIndex(d => d.id === drug.id);
@@ -3219,8 +3251,8 @@
     }
 
     // =====================================================================
-    // Welcome-back prompt for the one-night model. Old logs can be cleared,
-    // with Undo, when the newest entry is over 12 hours old. Checked at
+    // Welcome-back prompt for the one-night model. A fresh start resets all
+    // substances and entries when the newest entry is over 12 hours old. Checked at
     // load AND whenever the app comes back from the background — an
     // installed app can stay alive for days without ever reloading.
     // =====================================================================
@@ -3231,7 +3263,7 @@
       keepBtn.addEventListener('click', modal.close);
       $('#fresh-clear').addEventListener('click', () => {
         modal.close();
-        clearLogWithUndo('Log cleared.');
+        resetEverything();
       });
 
       let offeredFor = null; // newest entry the prompt was last shown for
@@ -3250,7 +3282,7 @@
         if ($$('.modal-overlay.show').length) return;
         offeredFor = newest;
         $('#fresh-msg').textContent =
-          `Your log still has entries from a previous night (last dose ${formatSinceLabel(newest)}). Start fresh, or keep them?`;
+          `Your log has entries from a previous night (last dose ${formatSinceLabel(newest)}). Reset all substances and entries, or keep everything?`;
         modal.open(keepBtn);
       };
     })();
