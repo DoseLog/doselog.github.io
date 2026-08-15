@@ -33,6 +33,7 @@ DoseLog helps you keep track of **what you've taken, how much, and — most impo
 Your data is nobody's business but yours:
 
 - **No server, no account, no analytics.** Everything lives in your browser's local storage, on your device. Nothing is ever uploaded.
+- **Optional automatic deletion.** You can have DoseLog erase all saved substances and entries the next time you return after 8, 12, or 24 hours away.
 - **No history hoarding.** The app encourages clearing the log after each night; deletions take effect immediately (with a brief Undo).
 - **Works fully offline.** After the first visit, it loads instantly with no network requests at all — nothing to intercept, nothing to log.
 - Anyone opening the same link gets their own empty copy. Your entries are never visible to anyone else.

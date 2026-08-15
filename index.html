@@ -219,6 +219,7 @@
       cursor: pointer; border-radius: 8px;
     }
     .footer-link:hover { color: var(--muted); }
+    .footer-sep { color: var(--faint); font-size: 14px; }
     /* Quiet trust line under the footer — subtle, but always on the page. */
     .trust-line {
       margin: 22px 0 0; text-align: center;
@@ -720,6 +721,36 @@
     .btn-danger:hover { background: rgba(239,110,102,0.22); }
     .btn-ghost { background: transparent; }
     .btn-ghost:hover { background: rgba(255,255,255,0.07); }
+    .privacy-settings-modal { width: min(92vw, 430px); }
+    .retention-options {
+      border: 0; padding: 0; margin: 0 0 14px;
+      display: grid; gap: 6px;
+    }
+    .retention-options legend {
+      padding: 0; margin: 0 0 9px;
+      color: var(--text); font-size: 14px; font-weight: 650;
+    }
+    .retention-option {
+      display: flex; align-items: center; gap: 11px;
+      min-height: 42px; padding: 7px 12px;
+      border: 1px solid var(--border-strong); border-radius: 11px;
+      background: var(--surface-2); color: var(--text);
+      font-size: 14px; font-weight: 550; cursor: pointer;
+    }
+    .retention-option:hover { background: rgba(255,255,255,0.07); }
+    .retention-option:has(input:checked) {
+      border-color: var(--accent-border); background: var(--accent-soft);
+    }
+    .retention-option input {
+      width: 18px; height: 18px; margin: 0; flex: 0 0 auto;
+      accent-color: var(--accent-strong);
+    }
+    .retention-option:has(input:focus-visible) {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+    .privacy-settings-modal .retention-note {
+      margin: -2px 0 14px; color: var(--faint); font-size: 12.5px;
+    }
     /* A real link dressed as a button (the "Open PsychonautWiki" action) */
     a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
     /* Compact centred substance-info dialog. */
@@ -1053,6 +1084,8 @@
     <!-- Quiet footer for secondary information. -->
     <footer class="page-footer">
       <button id="privacy-open" class="footer-link" aria-haspopup="dialog" aria-controls="privacy">Information</button>
+      <span class="footer-sep" aria-hidden="true">·</span>
+      <button id="privacy-settings-open" class="footer-link" aria-haspopup="dialog" aria-controls="privacy-settings">Privacy settings</button>
     </footer>
 
     <!-- Always-visible trust line; the full story is in the Information dialog. -->
@@ -1077,6 +1110,28 @@
   <div id="snackbar" class="snackbar" role="status" aria-live="polite">
     <span class="msg" id="snackbar-msg"></span>
     <button type="button" class="snackbar-action" id="snackbar-action" hidden>Undo</button>
+  </div>
+
+  <!-- Optional automatic deletion settings, kept out of the main logging UI. -->
+  <div id="privacy-settings" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="privacy-settings-title" style="display:none;">
+    <div class="modal privacy-settings-modal" role="document">
+      <h4 id="privacy-settings-title">Privacy settings</h4>
+      <p>Choose how long DoseLog can go unused before it erases all saved substances and dose entries.</p>
+      <form id="privacy-settings-form">
+        <fieldset class="retention-options">
+          <legend>Automatically erase my data</legend>
+          <label class="retention-option"><input type="radio" name="auto-delete-hours" value="off"> Off</label>
+          <label class="retention-option"><input type="radio" name="auto-delete-hours" value="8"> After 8 hours away</label>
+          <label class="retention-option"><input type="radio" name="auto-delete-hours" value="12"> After 12 hours away</label>
+          <label class="retention-option"><input type="radio" name="auto-delete-hours" value="24"> After 24 hours away</label>
+        </fieldset>
+        <p class="retention-note">Deletion happens the next time you open DoseLog. The app cannot erase data while it is closed.</p>
+        <div class="actions">
+          <button type="button" class="btn btn-ghost" id="privacy-settings-cancel">Cancel</button>
+          <button type="submit" class="btn" id="privacy-settings-save">Save</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Confirmation Modal -->
@@ -1197,7 +1252,7 @@
         </div>
       </div>
       <div class="privacy-content">
-        <p><em>Everything you track stays on your phone.</em> There is no server and no account — nothing is ever uploaded, and the app works fully offline. Anyone opening the app’s link just gets their own empty copy. To erase your data, use “Reset everything”.</p>
+        <p><em>Everything you track stays on your phone.</em> There is no server and no account — nothing is ever uploaded, and the app works fully offline. Anyone opening the app’s link just gets their own empty copy. To erase your data now, use “Reset everything”.</p>
         <p>If a friend wants DoseLog too, they can scan this code or type in the address:</p>
         <div class="qr-card">
           <!-- QR code for the app URL (generated once, works offline) -->
@@ -1562,6 +1617,70 @@
     // The shape is now { drugs, entries }; any old `history` is dropped on load.
     const initialState = { drugs: [], entries: [] };
     const STORAGE_KEY = 'med_tracker_v2_state';
+    const AUTO_DELETE_HOURS_KEY = 'med_tracker_auto_delete_hours';
+    const LAST_ACTIVE_KEY = 'med_tracker_last_active_at';
+    const AUTO_DELETE_HOUR_CHOICES = new Set(['8', '12', '24']);
+
+    function getAutoDeleteHours() {
+      try {
+        const value = localStorage.getItem(AUTO_DELETE_HOURS_KEY);
+        return AUTO_DELETE_HOUR_CHOICES.has(value) ? Number(value) : null;
+      } catch {
+        return null; // inability to read a setting must never cause deletion
+      }
+    }
+
+    function markAutoDeleteActivity(now=Date.now()) {
+      if (!getAutoDeleteHours()) return;
+      try { localStorage.setItem(LAST_ACTIVE_KEY, String(now)); } catch {}
+    }
+
+    // Automatic deletion also removes the emergency copy loadState() may have
+    // preserved after unreadable data. Keeping that copy would make the privacy
+    // promise untrue.
+    function eraseStoredTrackedData() {
+      let stateCleared = false;
+      let backupCleared = false;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
+        stateCleared = true;
+      } catch {}
+      try {
+        localStorage.removeItem(STORAGE_KEY + '_backup');
+        backupCleared = true;
+      } catch {}
+      return { stateCleared, backupCleared };
+    }
+
+    function autoDeleteStatus(now=Date.now()) {
+      const hours = getAutoDeleteHours();
+      if (!hours) return { hours: null, due: false };
+      let lastActive = NaN;
+      try { lastActive = Number(localStorage.getItem(LAST_ACTIVE_KEY)); } catch {}
+      // Missing/broken timestamps and clocks moving backwards fail safely and
+      // begin a fresh inactivity period instead of risking someone's log.
+      if (!Number.isFinite(lastActive) || lastActive <= 0 || now < lastActive) {
+        markAutoDeleteActivity(now);
+        return { hours, due: false };
+      }
+      return { hours, due: (now - lastActive) >= hours * 60 * 60 * 1000 };
+    }
+
+    // Run before loadState() so expired data never appears briefly on screen.
+    function applyAutoDeleteAtStartup() {
+      const status = autoDeleteStatus();
+      if (!status.hours) return null;
+      if (!status.due) {
+        markAutoDeleteActivity();
+        return null;
+      }
+      const result = eraseStoredTrackedData();
+      if (result.stateCleared && result.backupCleared) markAutoDeleteActivity();
+      return { hours: status.hours, ...result };
+    }
+
+    const startupAutoDeleteResult = applyAutoDeleteAtStartup();
+    let stateLoadFailed = false;
 
     function loadState() {
       try {
@@ -1601,13 +1720,15 @@
       }
     }
 
-    let stateLoadFailed = false;
     let state = loadState();
     // Saving can fail quietly (storage full, strict private mode). Say so
     // once — otherwise a whole night looks saved and is gone on next open.
     let saveWarned = false;
     function saveState() {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        markAutoDeleteActivity();
+      }
       catch (e) {
         console.error('State save failed:', e);
         if (!saveWarned) {
@@ -1966,6 +2087,35 @@
       saveState();
       render();
       showToast('Everything reset.');
+    }
+
+    function checkAutomaticDeletion() {
+      const status = autoDeleteStatus();
+      if (!status.hours) return 'not-due';
+      if (!status.due) {
+        markAutoDeleteActivity();
+        return 'not-due';
+      }
+
+      const result = eraseStoredTrackedData();
+      if (!result.stateCleared) {
+        showToast('DoseLog could not automatically erase your saved data. Please try again.', 10000);
+        return 'failed';
+      }
+
+      state = structuredClone(initialState);
+      editingId = null;
+      undoStack = [];
+      closeNumpad();
+      render();
+      if (result.backupCleared) {
+        markAutoDeleteActivity();
+        showToast(`DoseLog erased your saved data after ${status.hours} hours away.`, 7000);
+        return 'deleted';
+      }
+
+      showToast('Your log was erased, but DoseLog could not remove an old recovery copy. Please try again.', 10000);
+      return 'failed';
     }
 
     // Reset Everything Button
@@ -3243,11 +3393,55 @@
     $('#privacy-open').addEventListener('click', (e) => { e.preventDefault(); privacyModal.open($('#privacy-close')); });
     $('#privacy-close').addEventListener('click', privacyModal.close);
 
+    // Optional automatic deletion lives in its own small dialog so the main
+    // screen and one-screen Information dialog stay uncluttered.
+    const privacySettingsModal = setupModal($('#privacy-settings'));
+    const privacySettingsForm = $('#privacy-settings-form');
+    $('#privacy-settings-open').addEventListener('click', (e) => {
+      e.preventDefault();
+      const selected = String(getAutoDeleteHours() || 'off');
+      const choice = privacySettingsForm.querySelector(`input[value="${selected}"]`);
+      if (choice) choice.checked = true;
+      privacySettingsModal.open(choice || $('#privacy-settings-cancel'));
+    });
+    $('#privacy-settings-cancel').addEventListener('click', privacySettingsModal.close);
+    privacySettingsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const choice = privacySettingsForm.elements['auto-delete-hours'].value;
+      if (choice !== 'off' && !AUTO_DELETE_HOUR_CHOICES.has(choice)) return;
+      try {
+        if (choice === 'off') {
+          localStorage.removeItem(AUTO_DELETE_HOURS_KEY);
+          localStorage.removeItem(LAST_ACTIVE_KEY);
+        } else {
+          // Store the fresh baseline first: a partial write must never leave a
+          // shorter limit paired with an old timestamp and erase unexpectedly.
+          localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+          localStorage.setItem(AUTO_DELETE_HOURS_KEY, choice);
+        }
+      } catch {
+        showToast('DoseLog could not save this privacy setting.', 7000);
+        return;
+      }
+      privacySettingsModal.close();
+      showToast(choice === 'off'
+        ? 'Automatic deletion turned off.'
+        : `Automatic deletion set to ${choice} hours.`);
+    });
+
     setInterval(updateLastDoseLabels, 60000);
 
     try { render(); } catch(e) { console.error("Initial render failed", e); }
     if (stateLoadFailed) {
       showToast('Your saved log could not be read, so the app starts empty. The unreadable copy was kept, not deleted.', 10000);
+    } else if (startupAutoDeleteResult) {
+      if (startupAutoDeleteResult.stateCleared && startupAutoDeleteResult.backupCleared) {
+        showToast(`DoseLog erased your saved data after ${startupAutoDeleteResult.hours} hours away.`, 7000);
+      } else if (startupAutoDeleteResult.stateCleared) {
+        showToast('Your log was erased, but DoseLog could not remove an old recovery copy. Please try again.', 10000);
+      } else {
+        showToast('DoseLog could not automatically erase your saved data. Please try again.', 10000);
+      }
     }
 
     // =====================================================================
@@ -3286,16 +3480,23 @@
         modal.open(keepBtn);
       };
     })();
-    freshStartCheck();
+    // If automatic deletion was due, do not also present the older manual
+    // fresh-start choice (including when storage refused the deletion).
+    if (!startupAutoDeleteResult) freshStartCheck();
 
     // Coming back from the background: timers were suspended, so the big
     // "since last dose" numbers may be hours stale — refresh them right
     // away, at exactly the moment someone glances before redosing.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') {
+        markAutoDeleteActivity();
+        return;
+      }
+      const deletionResult = checkAutomaticDeletion();
       updateLastDoseLabels();
-      freshStartCheck();
+      if (deletionResult === 'not-due') freshStartCheck();
     });
+    window.addEventListener('pagehide', () => markAutoDeleteActivity());
 
     // =====================================================================
     // PWA: service worker, iOS install hint, persistent-storage request
