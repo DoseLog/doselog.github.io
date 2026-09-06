@@ -76,7 +76,7 @@
       --safe-bottom: env(safe-area-inset-bottom, 0px);
 
       /* Minimum comfortable touch height */
-      --control-h: 46px;
+      --control-h: 48px;
 
       color-scheme: dark;
     }
@@ -1018,10 +1018,40 @@
         transition-duration: 0.01ms !important;
       }
     }
+    /* Comfortable touch targets, including the quiet secondary actions. */
+    button, .btn, .btn-sm, .controls button, .icon-btn, .icon-btn.info-btn, .icon-btn.title-edit-btn, .color-dot-btn, .chev-btn,
+    .install-hint .hint-close, .install-hint .hint-install {
+      min-width: 44px; min-height: 44px;
+    }
+    .dose-grid .add-btn, #numpad-action { min-height: 48px; }
+    .taken-at { white-space: normal; }
+    .stacked-actions { display: flex; flex-direction: column; gap: 8px; }
+    .stacked-actions > button { width: 100%; }
+    .save-warning {
+      position: sticky; top: var(--safe-top); z-index: 1080;
+      padding: 12px 16px; margin-bottom: 16px;
+      border: 2px solid var(--danger); border-radius: 12px;
+      background: var(--surface-3); color: var(--text);
+    }
+    .save-warning[hidden] { display: none; }
+    .save-warning p { margin: 0 0 8px; font-size: 16px; line-height: 1.4; }
+    input.earlier-time, input.earlier-date, .retention-option { min-height: 44px; }
+    #privacy .modal { max-height: calc(100svh - 32px - var(--safe-top) - var(--safe-bottom)); }
+    @media (max-height: 740px) {
+      #privacy .modal { padding: 14px; }
+      #privacy .privacy-content p { margin-bottom: 8px; font-size: 12px; line-height: 1.4; }
+      #privacy .qr-card { margin: 8px auto; padding: 12px; }
+      #privacy .qr-card svg { width: 80px; height: 80px; }
+      #privacy #welcome-again { margin-top: 8px; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
+    <div id="save-warning" class="save-warning" hidden>
+      <p id="save-warning-message" role="alert"></p>
+      <button type="button" id="save-retry" class="btn">Retry saving</button>
+    </div>
     <header>
       <!-- Inline app icon, matching the home-screen icon. -->
       <div class="app-emblem" aria-hidden="true">
@@ -1070,7 +1100,7 @@
         <thead>
           <tr>
             <th scope="col">Substance</th>
-            <th scope="col">Doses</th>
+            <th scope="col">Amount</th>
             <th scope="col">Time</th>
             <th scope="col" aria-label="Actions"></th>
           </tr>
@@ -1185,9 +1215,10 @@
   <div id="fresh-start" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fresh-title" style="display:none;">
     <div class="modal" role="document">
       <h4 id="fresh-title">Welcome back</h4>
-      <p id="fresh-msg">Your log still has entries from a previous night. Reset all substances and entries, or keep everything?</p>
-      <div class="actions">
+      <p id="fresh-msg">Keep everything, start a new log with your substances, or reset everything.</p>
+      <div class="actions stacked-actions">
         <button class="btn btn-ghost" id="fresh-keep">Keep everything</button>
+        <button class="btn" id="fresh-new-log">Start a new log, keep my substances</button>
         <button class="btn btn-danger" id="fresh-clear">Reset everything</button>
       </div>
     </div>
@@ -1262,7 +1293,7 @@
         <p class="contact-line">Questions or feedback? Contact us at <a href="mailto:doselogsupport@proton.me">doselogsupport@proton.me</a>.</p>
         <button class="btn btn-ghost" id="welcome-again">Show welcome &amp; install guide</button>
         <p class="fine-print">DoseLog is a logbook, not medical advice.</p>
-        <p class="version-line">DoseLog 1.0</p>
+        <p class="version-line">DoseLog 1.1</p>
       </div>
     </div>
   </div>
@@ -1721,22 +1752,30 @@
     }
 
     let state = loadState();
-    // Saving can fail quietly (storage full, strict private mode). Say so
-    // once — otherwise a whole night looks saved and is gone on next open.
-    let saveWarned = false;
+    // Saving failures stay visible until a write actually succeeds.
+    let saveFailed = false;
     function saveState() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         markAutoDeleteActivity();
+        const recovered = saveFailed;
+        saveFailed = false;
+        $('#save-warning').hidden = true;
+        $('#save-warning-message').textContent = '';
+        if (recovered) showToast('Your changes are now saved.');
+        return true;
       }
       catch (e) {
         console.error('State save failed:', e);
-        if (!saveWarned) {
-          saveWarned = true;
-          showToast('Heads up: this device is not saving your log — entries will be lost when the app closes.', 10000);
+        $('#save-warning').hidden = false;
+        if (!saveFailed) {
+          $('#save-warning-message').textContent = 'Your changes aren’t being saved. They may be lost when you close DoseLog.';
         }
+        saveFailed = true;
+        return false;
       }
     }
+    $('#save-retry').addEventListener('click', saveState);
 
     function lastDoseDate(drugId) {
       let latest = null;
@@ -2057,9 +2096,15 @@
       if (!btn || !padTarget) return;
       const k = btn.dataset.key;
       if (k === 'action') { const fn = padAction; closeNumpad(); if (fn) fn(); return; }
-      if (k === 'back') padTarget.value = padTarget.value.slice(0, -1);
-      else if (k === '.') { if (!/[.,]/.test(padTarget.value)) padTarget.value += '.'; }
-      else padTarget.value += k;
+      let start = padTarget.selectionStart ?? padTarget.value.length;
+      const end = padTarget.selectionEnd ?? start;
+      if (k === 'back' && start === end) start = Math.max(0, start - 1);
+      const before = padTarget.value.slice(0, start);
+      const after = padTarget.value.slice(end);
+      if (k === '.' && /[.,]/.test(before + after)) return;
+      const insert = k === 'back' ? '' : k;
+      padTarget.value = before + insert + after;
+      padTarget.setSelectionRange(start + insert.length, start + insert.length);
     });
 
     // Tapping anywhere else puts the pad away
@@ -2438,7 +2483,7 @@
         // Disable autofill/autocorrect
         nameInput.setAttribute('autocomplete', 'off');
         nameInput.setAttribute('autocorrect', 'off');
-        nameInput.setAttribute('autocapitalize', 'off');
+        nameInput.setAttribute('autocapitalize', 'sentences');
         nameInput.setAttribute('spellcheck', 'false');
 
         // Rebuilt on edit so existing cards drop out. Delayed hide lets taps land.
@@ -2476,12 +2521,17 @@
               drug.color = p.color;
               if (p.blend) drug.blend = p.blend; else delete drug.blend;
               drug.lastUnit = p.unit; // the dose row's unit picker reads this
+              drug.expanded = true;
               saveState();
               render();
               // Flow straight into dose entry.
               if (drug.expanded) {
                 const numEl = document.querySelector(`[data-id="${drug.id}"] .dose-grid input`);
-                if (numEl) numEl.focus();
+                if (numEl) {
+                  if (p.unit === 'line') numEl.value = '1';
+                  numEl.focus();
+                  if (p.unit === 'line') numEl.select();
+                }
               }
             });
             presetRow.appendChild(chip);
@@ -2500,6 +2550,7 @@
         };
         const renameBtn = iconBtn('icon-btn title-edit-btn', 'Rename', `Rename ${drug.name}`, ICONS.pencil);
         renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startTitleEdit(); });
+
 
         // Preset info; a preset word inside the name ("Ketamine D") counts too.
         const infoBtn = iconBtn('icon-btn info-btn', 'Substance info', null, ICONS.info);
@@ -2643,6 +2694,7 @@
         topRow.appendChild(infoBtn);
         topRow.appendChild(chevBtn);
         topRow.appendChild(sizer);
+
 
         // Tap anywhere on the header (not on a button/input/menu) to
         // expand or collapse — much bigger target than the chevron alone
@@ -3176,9 +3228,11 @@
         // Clock time under the interval; a date joins it after midnight.
         const takenEl = document.getElementById(`taken-${d.id}`);
         if (takenEl) {
+          const lastEntry = getLastEntry(d.id);
+          const amount = lastEntry ? displayValueUnit(lastEntry.value, lastEntry.unit) : '';
           takenEl.textContent = !when ? '' : (dayKey(when) === dayKey(new Date())
-            ? `Taken at ${timeStr(when)}`
-            : `Taken ${dateLabel(when)}, ${timeStr(when)}`);
+            ? `Taken ${amount} at ${timeStr(when)}`
+            : `Taken ${amount} on ${dateLabel(when)} at ${timeStr(when)}`);
         }
         fitLastDoseLabel(el);
       });
@@ -3244,7 +3298,7 @@
         drug.expanded = false; // AUTO-COLLAPSE
       }
 
-      saveState();
+      const saved = saveState();
 
       if (numInput) numInput.value = '';
       render();
@@ -3254,7 +3308,7 @@
       const when = dayKey(ts) === dayKey(new Date())
         ? timeStr(ts) : `${dateLabel(ts)}, ${timeStr(ts)}`;
       // Undoable like deletions are — a stray tap on Repeat logs a real dose.
-      showToast(`Added ${dosageText} of ${currentDrugName} · ${when}`,
+      showToast(`Added ${dosageText} of ${currentDrugName} · ${when}${saved ? '' : ' · not saved'}`,
         6000, 'Undo', () => {
           const i = state.entries.findIndex(x => x.id === entry.id);
           if (i >= 0) { state.entries.splice(i, 1); saveState(); render(); }
@@ -3358,6 +3412,7 @@
         const pencil = card ? card.querySelector('.title-edit-btn') : null;
         if (pencil) {
           pencil.click();
+
           // Scrolling can wait until the keyboard starts sliding up
           setTimeout(() => {
             if (newNameInput) newNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3455,6 +3510,10 @@
       const modal = setupModal($('#fresh-start'));
       const keepBtn = $('#fresh-keep');
       keepBtn.addEventListener('click', modal.close);
+      $('#fresh-new-log').addEventListener('click', () => {
+        modal.close();
+        clearLogWithUndo('New log started. Substances kept.');
+      });
       $('#fresh-clear').addEventListener('click', () => {
         modal.close();
         resetEverything();
@@ -3476,7 +3535,7 @@
         if ($$('.modal-overlay.show').length) return;
         offeredFor = newest;
         $('#fresh-msg').textContent =
-          `Your log has entries from a previous night (last dose ${formatSinceLabel(newest)}). Reset all substances and entries, or keep everything?`;
+          `Your log has entries from a previous night (last dose ${formatSinceLabel(newest)}). Keep everything, start a new log with your substances, or reset everything.`;
         modal.open(keepBtn);
       };
     })();
@@ -3677,14 +3736,14 @@
             installNote.hidden = false;
             installNote.textContent = 'Android installs it through your browser.';
             installHint.hidden = false;
-            installHint.innerHTML = '<b>If Android says this app is unsafe:</b> that’s a generic Play Protect message shown for every web app — DoseLog has no account, server, or analytics, and nothing ever leaves your phone. Tap <b>More details → Install anyway</b>. Still blocked? Update <b>Google Play services</b> in the Play Store, or just choose <b>Add to Home screen</b> instead — that always works.';
+            installHint.textContent = 'If installation is blocked, you can keep using DoseLog in this browser.';
             steps = ['Tap <b>Install the app</b> if it appears, or tap the <b>⋮ menu</b>',
                      'Choose <b>Install app</b>'];
           } else {
             installNote.hidden = false;
             installNote.textContent = 'Some Android browsers only create shortcuts.';
             installHint.hidden = false;
-            installHint.innerHTML = '<b>Best result:</b> Chrome and Samsung Internet install DoseLog as a standalone offline app. If Android shows an “Unsafe app” warning, that’s a generic Play Protect message for all web apps — tap <b>More details → Install anyway</b>, or use <b>Add to Home screen</b>.';
+            installHint.textContent = 'If installation is blocked, you can keep using DoseLog in this browser.';
             steps = ['For the cleanest install, open this link in <b>Chrome</b> (or <b>Samsung Internet</b> on Samsung phones)',
                      'Tap the <b>⋮ menu</b> → <b>Install app</b>'];
           }
