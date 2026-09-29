@@ -203,6 +203,8 @@
       align-items: center;
       gap: 7px;
     }
+    /* Hidden on the empty start screen (see syncEmptyState) */
+    #add-med[hidden], #reset-all[hidden], #share-log[hidden], #clear-log[hidden] { display: none; }
     #reset-all:hover, .card-remove-btn:hover { background: rgba(239,110,102,0.14); }
     #reset-all svg { width: 15px; height: 15px; flex: 0 0 auto; }
 
@@ -239,17 +241,6 @@
        of stretching to match an expanded neighbour */
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
 
-    .grid-empty {
-      grid-column: 1 / -1;
-      border: 1px dashed var(--border-strong);
-      border-radius: var(--radius);
-      padding: 36px 20px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    .grid-empty strong { color: var(--text); }
 
     /* ===== Card ===== */
     .card {
@@ -350,6 +341,75 @@
       flex: 0 0 auto;
     }
     .name-error { color: var(--danger); font-size: 12px; margin: 0; display: none; }
+
+    /* ===== Substance picker =====
+       Preset tiles + "Something else…" field. Shown on the empty start screen
+       and in the "+ Add substance" panel. */
+    .picker-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .preset-tile {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px;
+      min-height: 72px; padding: 12px 4px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      /* Shrinks a touch on narrow phones so "Mephedrone" fits one line */
+      font-family: inherit; font-size: clamp(12.5px, 3.7vw, 14px); font-weight: 650; line-height: 1.15;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--t-fast) var(--ease),
+                  border-color var(--t-fast) var(--ease),
+                  transform var(--t-fast) var(--ease);
+    }
+    .preset-tile:hover { background: var(--surface-3); }
+    .preset-tile:active { transform: scale(0.96); }
+    .preset-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .preset-tile .dot {
+      width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto;
+      box-shadow: 0 0 0 4px var(--ring, transparent);
+    }
+    .preset-tile .tile-name { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Already has a card: quieter, with a tick. Still tappable (adds another). */
+    .preset-tile.taken { background: transparent; border-color: var(--border); color: var(--muted); }
+    .preset-tile.taken .dot { opacity: 0.55; }
+    .preset-tile .tile-tick {
+      position: absolute; top: 6px; right: 7px;
+      color: var(--accent-strong); display: none; line-height: 0;
+    }
+    .preset-tile.taken .tile-tick { display: block; }
+    .preset-tile .tile-tick svg { width: 13px; height: 13px; }
+    .preset-tile[hidden] { display: none; }
+    .picker-other { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 14px; }
+    .picker-other input { width: 100%; }
+    .picker-other button.add-btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+    .picker-error { color: var(--danger); font-size: 12.5px; margin: 6px 2px 0; }
+    .picker-error[hidden] { display: none; }
+    .picker-none { margin: 2px 0 0; color: var(--faint); font-size: 13px; }
+    .picker-none[hidden] { display: none; }
+
+    /* Start screen: the picker sits right on the page as its own card. */
+    .start-picker {
+      grid-column: 1 / -1;
+      background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-soft);
+      padding: 18px 16px 16px;
+    }
+    .start-picker h2 { margin: 0 0 3px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .start-picker .picker-sub { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+    /* Very narrow phones: a little more room inside the tiles */
+    @media (max-width: 359px) {
+      .start-picker { padding: 16px 12px 12px; }
+      .picker-tiles { gap: 6px; }
+      .preset-tile { padding-left: 2px; padding-right: 2px; }
+    }
+    @media (min-width: 721px) { .start-picker .picker-tiles { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 961px) { .start-picker .picker-tiles { grid-template-columns: repeat(6, 1fr); } }
+    .toolbar[hidden], .toolbar [hidden], .log[hidden] { display: none; }
 
     .btn-sm { padding: 8px 11px; font-size: 12.5px; min-height: 36px; }
 
@@ -698,6 +758,36 @@
     }
     .modal-overlay.show { display: flex; }
     #confirm { z-index: 1200; }
+
+    /* "+ Add substance" panel: slides up from the bottom on phones.
+       --kb lifts it above the on-screen keyboard while typing. */
+    .add-sheet .modal {
+      width: min(92vw, 460px);
+      padding: 18px 16px 16px;
+    }
+    .add-sheet .modal:focus { outline: none; }
+    .add-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .add-sheet-head h4 { margin: 0; }
+    .add-sheet-close {
+      display: inline-grid; place-items: center;
+      border: none; background: transparent; color: var(--muted);
+      border-radius: 999px; cursor: pointer; margin: -8px -8px -8px 0;
+    }
+    .add-sheet-close:hover { color: var(--text); background: rgba(255,255,255,0.07); }
+    @media (max-width: 720px) {
+      .add-sheet { align-items: flex-end; padding: 0; padding-bottom: var(--kb, 0px); }
+      .add-sheet .modal {
+        width: 100%; max-width: 520px;
+        max-height: calc(100% - 24px - var(--safe-top));
+        border-radius: 22px 22px 0 0;
+        border-bottom: none;
+        padding: 18px 16px calc(16px + var(--safe-bottom));
+        animation: sheet-in var(--t-med) var(--ease) forwards;
+      }
+      /* Above the keyboard the home-indicator gap is not needed. */
+      .add-sheet.typing .modal { padding-bottom: 12px; }
+    }
+    @keyframes sheet-in { from { transform: translateY(40px); opacity: 0 } to { transform: none; opacity: 1 } }
 
     @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
     @keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.98) } to { opacity: 1; transform: none } }
@@ -1092,8 +1182,8 @@
           <button id="clear-log" class="clear-log-btn" title="Clear the log">clear</button>
         </div>
         <div class="controls">
-          <button id="share-log" title="Send your current log as an image">Share with a friend</button>
           <button id="combo-open" title="Check your combination against TripSit's chart" aria-haspopup="dialog" aria-controls="combo">Check combinations</button>
+          <button id="share-log" title="Send your current log as an image">Share with a friend</button>
         </div>
       </div>
       <table aria-label="Dose log">
@@ -1210,6 +1300,19 @@
     </div>
   </div>
 
+  <!-- "+ Add substance" panel: preset tiles first, typing only if needed -->
+  <div id="add-picker" class="modal-overlay add-sheet" role="dialog" aria-modal="true" aria-labelledby="add-picker-title" style="display:none;">
+    <div class="modal" role="document" tabindex="-1">
+      <div class="add-sheet-head">
+        <h4 id="add-picker-title">Add a substance</h4>
+        <button type="button" class="add-sheet-close" id="add-picker-close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="add-picker-body"></div>
+    </div>
+  </div>
+
   <!-- Welcome-back prompt: offered when the log still holds entries from a
        previous night, so each night can start with a clean slate -->
   <div id="fresh-start" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fresh-title" style="display:none;">
@@ -1293,7 +1396,7 @@
         <p class="contact-line">Questions or feedback? Contact us at <a href="mailto:doselogsupport@proton.me">doselogsupport@proton.me</a>.</p>
         <button class="btn btn-ghost" id="welcome-again">Show welcome &amp; install guide</button>
         <p class="fine-print">DoseLog is a logbook, not medical advice.</p>
-        <p class="version-line">DoseLog 1.1</p>
+        <p class="version-line">DoseLog 1.2</p>
       </div>
     </div>
   </div>
@@ -1431,16 +1534,16 @@
       { name: 'Mephedrone', color: '#d97706', unit: 'line', ts: 'mephedrone' },
       { name: '3-MMC',      color: '#fde68a', unit: 'line', ts: null },
       { name: 'Cocaine',    color: '#f4f6f8', unit: 'line', ts: 'cocaine' },
-      { name: 'GHB',        color: '#7dd3fc', unit: 'ml',   ts: 'ghb/gbl' },
       { name: '2C-B',       color: '#ec4899', unit: 'mg',   ts: '2c-x',      blend: 'candy' },
       { name: 'LSD',        color: '#a3e635', unit: 'µg',   ts: 'lsd',       blend: 'rainbow' },
       { name: 'Shrooms',    color: '#f59e0b', unit: 'g',    ts: 'mushrooms', wiki: 'Psilocybin mushrooms', blend: 'forest' },
+      { name: 'GHB',        color: '#7dd3fc', unit: 'ml',   ts: 'ghb/gbl' },
       { name: 'Weed',       color: '#22c55e', unit: 'hit',  ts: 'cannabis', wiki: 'Cannabis' },
       { name: 'Alcohol',    color: '#ef4444', unit: 'drink', ts: 'alcohol' }
     ];
     const findPreset = (name) => PRESETS.find(p => nameKey(p.name) === nameKey(name));
-    // Default name for freshly added cards ("New substance", "New substance 2").
-    const DEFAULT_NAME = 'New substance';
+    // Placeholder name older versions gave new cards ("New substance 2");
+    // saved cards may still carry it.
     const isDefaultName = (s) => /^new substance( \d+)?$/.test(nameKey(s));
     // Loose match: a preset name appearing as its own word inside the card
     // name still counts as that preset.
@@ -1560,7 +1663,7 @@
     // Offline TripSit extract: pair ratings plus TripSit's alias table.
     // Regenerate with scripts/update-tripsit.py; do not edit by hand.
     // TRIPSIT-DATA-START (auto-generated)
-    const TRIPSIT = {"snapshot":"2026-07-12","pairs":{"ketamine|mdma":{"s":"Low Risk & Synergy","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of  this combination may be ill advised due to risk of physical injury."},"amphetamines|mdma":{"s":"Caution","n":"This combination of stimulants will increase strain on the heart, may cause some physical discomfort, and has the chance to cause cardiovascular issues. The anxiogenic and focusing effects of stimulants can increase the chance of unpleasant thought loops and make the experience more uncomfortable, this combination raises these chances. Amphetamines will increase the neurotoxic effects of MDMA, in addition to causing further concerns of hyperthermia due to the inherent nature of the combination. It will also raise one's body temperature, also likely making the combination more neurotoxic."},"mdma|mephedrone":{"s":"Dangerous","n":"Risk of serotonin syndrome as both drugs raise serotonin levels. Stimulants also increase the neurotoxic effects of MDMA, in addition to concerns of high blood pressure and unnecessary strain on the heart. As well as potentially causing anxiety and greater physical discomfort due to the combination."},"cocaine|mdma":{"s":"Caution","n":"Cocaine blocks some of the desirable effects of MDMA while increasing the risk of heart attack."},"ghb/gbl|mdma":{"s":"Caution","n":"Large amounts of GHB/GBL may overwhelm the effects of MDMA on the comedown."},"2c-x|mdma":{"s":"Low Risk & Synergy"},"lsd|mdma":{"s":"Low Risk & Synergy"},"mdma|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|mdma":{"s":"Low Risk & Synergy","n":"Large amounts of cannabis may cause strong and somewhat unpredictable experiences in combination with MDMA. Cannabis should be saved for towards the end of the experience if possible."},"alcohol|mdma":{"s":"Caution","n":"The combination of MDMA and alcohol may increase strain on the cardiovascular system and lead to increased alcohol consumption. MDMA may also impair one's ability to recognize their level of drunkenness, leading to increased alcohol consumption and poor decision-making. Alcohol may also increase the risk of dehydration and hyperthermia (increased body temperature) when combined with MDMA."},"benzodiazepines|mdma":{"s":"Low Risk & Decrease"},"mdma|opioids":{"s":"Low Risk & No Synergy"},"mdma|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"caffeine|mdma":{"s":"Caution","n":"Caffeine is not really necessary with MDMA and increases any neurotoxic effects from MDMA"},"mdma|nitrous":{"s":"Low Risk & Synergy"},"mdma|ssris":{"s":"Low Risk & Decrease"},"maois|mdma":{"s":"Dangerous","n":"MAO-B inhibitors can increase the potency and duration of phenethylamines unpredictably. MAO-A inhibitors with MDMA will lead to hypertensive crises."},"amphetamines|ketamine":{"s":"Caution","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of this combination may be ill advised due to risk of physical injury."},"cocaine|ketamine":{"s":"Caution","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of this combination may be ill advised due to risk of physical injury."},"ghb/gbl|ketamine":{"s":"Dangerous","n":"Both substances cause ataxia and bring a risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"2c-x|ketamine":{"s":"Low Risk & Synergy"},"ketamine|lsd":{"s":"Low Risk & Synergy"},"ketamine|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|ketamine":{"s":"Low Risk & Synergy"},"alcohol|ketamine":{"s":"Dangerous","n":"Both substances cause ataxia and bring a very high risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"benzodiazepines|ketamine":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position."},"ketamine|opioids":{"s":"Dangerous","n":"Both substances bring a risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"ketamine|tramadol":{"s":"Dangerous"},"caffeine|ketamine":{"s":"Low Risk & No Synergy","n":"No unexpected interactions."},"ketamine|nitrous":{"s":"Low Risk & Synergy"},"ketamine|ssris":{"s":"Low Risk & No Synergy"},"ketamine|maois":{"s":"Caution","n":"MAO-B inhibitors appear to increase the potency of Ketamine. MAO-A inhbitors have some negative reports associated with the combination but there isn't much information available"},"amphetamines|cocaine":{"s":"Caution","n":"This combination of stimulants will increase strain on the heart. It is not generally worth it as cocaine has a mild blocking effect on dopamine releasers like amphetamine"},"amphetamines|ghb/gbl":{"s":"Caution","n":"Stimulants increase respiration rate allowing for a higher dose of sedatives. If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"2c-x|amphetamines":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops. The combination is generally unnecessary because of the stimulating effects of psychedelics. Combination of the stimulating effects may be uncomfortable."},"amphetamines|lsd":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"amphetamines|mushrooms":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"amphetamines|cannabis":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"alcohol|amphetamines":{"s":"Caution","n":"Drinking on stimulants is risky because the sedative effects of the alcohol are reduced, and these are what the body uses to gauge drunkenness. This typically leads to excessive drinking with greatly reduced inhibitions, high risk of liver damage and increased dehydration. They will also allow you to drink past a point where you might normally pass out, increasing the risk. If you do decide to do this then you should set a limit of how much you will drink each hour and stick to it, bearing in mind that you will feel the alcohol and the stimulant less. Extended release formulations may severely impede sleep, further worsening the hangover."},"amphetamines|benzodiazepines":{"s":"Low Risk & Decrease","n":"Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction"},"amphetamines|opioids":{"s":"Caution","n":"Stimulants increase respiration rate, which can allow for a higher dose of opiates normal . If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"amphetamines|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"amphetamines|caffeine":{"s":"Caution","n":"This combination of stimulants is not generally necessary and may increase strain on the heart, as well as potentially causing anxiety and greater physical discomfort."},"amphetamines|nitrous":{"s":"Low Risk & Synergy"},"amphetamines|ssris":{"s":"Low Risk & No Synergy"},"amphetamines|maois":{"s":"Dangerous","n":"MAO-B inhibitors can increase the potency and duration of phenethylamines unpredictably. MAO-A inhibitors with amphetamine can lead to hypertensive crises."},"ghb/gbl|mephedrone":{"s":"Caution","n":"Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction. Both substances affect the heart and may lead to further dangerous heart complications at higher dosages. Additionally, the combination may increase the negative side effects of each other."},"lsd|mephedrone":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops, in addition to the possible negative side effects of coming down from said stimulant while on a psychedelic. In extreme cases, stimulants, especially in combination can result in severe vasoconstriction, tachycardia, hypertension, and heart failure."},"mephedrone|mushrooms":{"s":"Low Risk & Synergy","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"mephedrone|opioids":{"s":"Caution","n":"Stimulants increase respiration rate allowing a higher dose of opiates. If the stimulant wears off first then the opiate may overcome the patient and cause respiratory arrest."},"mephedrone|tramadol":{"s":"Dangerous","n":"There is a high risk of serotonin syndrome and seizures at recreational dosages. Both substances affect the heart and may lead to further dangerous heart complications at higher dosages. Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction. The combination may increase each other's side effects, such as dizziness and drowsiness. At higher dosages, the combination may increase each other’s side effects, such as delirium, mania, and psychosis."},"caffeine|mephedrone":{"s":"Caution","n":"This combination of stimulants is not generally necessary and may increase strain on the heart, as well as potentially causing anxiety and great physical discomfort. However, individual responses to caffeine can vary significantly, often influenced by factors like habitual versus occasional usage."},"cocaine|ghb/gbl":{"s":"Caution","n":"Stimulants increase respiration rate allowing for a higher dose of sedatives than normal. If the stimulant wears off first the opiate may overcome the individual and cause respiratory arrest. Likewise the ghb/gbl can wear off and leave a dangerous concentration of cocaine behind"},"2c-x|cocaine":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops. The combination is generally unnecessary because of the stimulating effects of psychedelics. Combination of the stimulating effects may be uncomfortable."},"cocaine|lsd":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"cocaine|mushrooms":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"cannabis|cocaine":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"alcohol|cocaine":{"s":"Unsafe","n":"Cocaine can decrease some of the intoxicating effects of alcohol, causing some people to drink more than they otherwise would, which leads to greater behavioral and physical health risks. There is also some debate about cocaethylene, a metabolite produced when combining alcohol and cocaine, with some researchers positing that it is more cardiotoxic than cocaine on its own. Use moderation when combining these substances."},"benzodiazepines|cocaine":{"s":"Low Risk & Decrease"},"cocaine|opioids":{"s":"Dangerous","n":"Stimulants increase respiration rate allowing for a higher dose of opiates than normal. If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"cocaine|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"caffeine|cocaine":{"s":"Caution","n":"Both stimulants, risk of tachycardia, hypertension, and in extreme cases heart failure."},"cocaine|nitrous":{"s":"Low Risk & Synergy"},"cocaine|ssris":{"s":"Low Risk & No Synergy","n":"May reduce each others' effectiveness. Cocaine can reduce mental stability and therefore exacerbate conditions which SSRIs are used to treat."},"cocaine|maois":{"s":"Dangerous","n":"This combination is poorly explored"},"2c-x|ghb/gbl":{"s":"Low Risk & Decrease"},"ghb/gbl|lsd":{"s":"Low Risk & Decrease"},"ghb/gbl|mushrooms":{"s":"Low Risk & Decrease"},"cannabis|ghb/gbl":{"s":"Low Risk & Synergy"},"alcohol|ghb/gbl":{"s":"Dangerous","n":"Even in very low doses this combination rapidly leads to memory loss, severe ataxia and unconsciousness. There is a high risk of vomit aspiration while unconscious."},"benzodiazepines|ghb/gbl":{"s":"Dangerous","n":"The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position."},"ghb/gbl|opioids":{"s":"Dangerous","n":"The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position"},"ghb/gbl|tramadol":{"s":"Dangerous","n":"The sedative effects of this combination can lead to dangerous respiratory depression."},"caffeine|ghb/gbl":{"s":"Low Risk & No Synergy"},"ghb/gbl|nitrous":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"ghb/gbl|ssris":{"s":"Low Risk & No Synergy"},"ghb/gbl|maois":{"s":"Low Risk & Synergy"},"2c-x|lsd":{"s":"Low Risk & Synergy"},"2c-x|mushrooms":{"s":"Low Risk & Synergy"},"2c-x|cannabis":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"2c-x|alcohol":{"s":"Low Risk & Decrease"},"2c-x|benzodiazepines":{"s":"Low Risk & Decrease"},"2c-x|opioids":{"s":"Low Risk & No Synergy"},"2c-x|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics raise the risk of seizures."},"2c-x|caffeine":{"s":"Low Risk & No Synergy","n":"High doses of caffeine may cause anxiety which is less manageable when tripping, and since both are stimulating the combination may cause some physical discomfort."},"2c-x|nitrous":{"s":"Low Risk & Synergy"},"2c-x|ssris":{"s":"Low Risk & Decrease"},"2c-x|maois":{"s":"Caution","n":"MAO-B inhibitors can increase the potency and duration of phenethylamines unpredictably"},"lsd|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|lsd":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"alcohol|lsd":{"s":"Low Risk & Decrease"},"benzodiazepines|lsd":{"s":"Low Risk & Decrease"},"lsd|opioids":{"s":"Low Risk & No Synergy"},"lsd|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics also cause occasional seizures."},"caffeine|lsd":{"s":"Low Risk & No Synergy"},"lsd|nitrous":{"s":"Low Risk & Synergy"},"lsd|ssris":{"s":"Low Risk & Decrease"},"lsd|maois":{"s":"Low Risk & Decrease"},"cannabis|mushrooms":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"alcohol|mushrooms":{"s":"Low Risk & Decrease"},"benzodiazepines|mushrooms":{"s":"Low Risk & Decrease"},"mushrooms|opioids":{"s":"Low Risk & No Synergy"},"mushrooms|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics also cause occasional seizures."},"caffeine|mushrooms":{"s":"Low Risk & No Synergy"},"mushrooms|nitrous":{"s":"Low Risk & Synergy"},"mushrooms|ssris":{"s":"Low Risk & Decrease"},"maois|mushrooms":{"s":"Low Risk & Synergy"},"alcohol|cannabis":{"s":"Low Risk & Synergy","n":"In excess, this combination can cause nausea."},"benzodiazepines|cannabis":{"s":"Low Risk & Decrease"},"cannabis|opioids":{"s":"Low Risk & Synergy"},"cannabis|tramadol":{"s":"Low Risk & Synergy"},"caffeine|cannabis":{"s":"Low Risk & No Synergy"},"cannabis|nitrous":{"s":"Low Risk & Synergy"},"cannabis|ssris":{"s":"Low Risk & No Synergy"},"cannabis|maois":{"s":"Low Risk & Synergy"},"alcohol|benzodiazepines":{"s":"Dangerous","n":"Ethanol ingestion may potentiate the CNS effects of many benzodiazepines. The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Blacking out and memory loss is almost certain."},"alcohol|opioids":{"s":"Dangerous","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. Place the affected individual in the recovery position to prevent vomit aspiration from excess. Memory blackouts are likely"},"alcohol|tramadol":{"s":"Dangerous","n":"Heavy CNS depressants, risk of seizures. Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. Place the affected individual in the recovery position to prevent vomit aspiration from excess. Memory blackouts are likely."},"alcohol|caffeine":{"s":"Low Risk & No Synergy"},"alcohol|nitrous":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"alcohol|ssris":{"s":"Caution","n":"Alcohol may potentiate some of the pharmacologic effects of CNS-active agents. Use in combination may result in additive central nervous system depression and/or impairment of judgment, thinking, and  psychomotor skills."},"alcohol|maois":{"s":"Unsafe","n":"Tyramine found in many alcoholic beverages can have dangerous reactions with MAOIs, causing an increase in blood pressure."},"benzodiazepines|opioids":{"s":"Dangerous","n":"Central nervous system and/or respiratory-depressant effects may be additively or synergistically present. The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position Blackouts/memory loss likely"},"benzodiazepines|tramadol":{"s":"Dangerous","n":"Central nervous system- and/or respiratory-depressant effects may be additively or synergistically present. Vomit aspiration is a risk when passed out, lay down in recovery position if ingested."},"benzodiazepines|caffeine":{"s":"Low Risk & Decrease"},"benzodiazepines|nitrous":{"s":"Low Risk & Decrease"},"benzodiazepines|ssris":{"s":"Low Risk & No Synergy"},"benzodiazepines|maois":{"s":"Low Risk & Synergy"},"opioids|tramadol":{"s":"Dangerous","n":"Concomitant use of tramadol increases the seizure risk in individuals taking other opioids. These agents are often individually epileptogenic and may have additive effects on seizure threshold during coadministration. Central nervous system- and/or respiratory-depressant effects may be additively or synergistically present"},"caffeine|opioids":{"s":"Low Risk & No Synergy"},"nitrous|opioids":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"opioids|ssris":{"s":"Low Risk & No Synergy","n":"There have been some case reports of serotonin syndrome in individuals who were given a combination of opioids and SSRIs. Other research has indicated a small increase in overdose risk for people who are prescribed CYP2D6-inhibiting SSRIs (e.g. fluoxetine and paroxetine) with oxycodone. Overall, risk is low with this combination but, as always, be mindful of your consumption."},"maois|opioids":{"s":"Caution","n":"Coadministration of monoamine oxidase inhibitors (MAOIs) with certain opioids has been associated with rare reports of severe and fatal adverse reactions. There appear to be two types of interaction, an excitatory and a depressive one. Symptoms of the excitatory reaction may include agitation, headache, diaphoresis, hyperpyrexia, flushing, shivering, myoclonus, rigidity, tremor, diarrhea, hypertension, tachycardia, seizures, and coma. Death has occurred in some cases."},"caffeine|tramadol":{"s":"Low Risk & No Synergy"},"nitrous|tramadol":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"ssris|tramadol":{"s":"Dangerous"},"maois|tramadol":{"s":"Dangerous"},"caffeine|nitrous":{"s":"Low Risk & No Synergy"},"caffeine|ssris":{"s":"Low Risk & No Synergy"},"caffeine|maois":{"s":"Low Risk & No Synergy"},"nitrous|ssris":{"s":"Low Risk & No Synergy"},"maois|nitrous":{"s":"Low Risk & No Synergy"},"maois|ssris":{"s":"Dangerous"}},"names":{"2cb":"2c-x","bees":"2c-x","nexus":"2c-x","2cban":"2c-x","2cbfly":"2c-x","2cbflynbome":"2c-x","2cc":"2c-x","2cd":"2c-x","2cm":"2c-x","2ce":"2c-x","2cg":"2c-x","2cg5":"2c-x","2ci":"2c-x","2cip":"2c-x","2cn":"2c-x","2cp":"2c-x","2ct":"2c-x","2ct2":"2c-x","2ct4":"2c-x","2ct7":"2c-x","2ct21":"2c-x","3ohphenazepam":"benzodiazepines","3hophenazepam":"benzodiazepines","3hop":"benzodiazepines","3ohp":"benzodiazepines","3hydroxyphenazepam":"benzodiazepines","4meobutryfentanyl":"opioids","4meobutyrfentanyl":"opioids","4meobf":"opioids","6mddm":"opioids","6methylenedihydrodesoxymorphine":"opioids","acetylfentanyl":"opioids","af":"opioids","acrylfentanyl":"opioids","ah7921":"opioids","alcohol":"alcohol","etoh":"alcohol","beer":"alcohol","ethanol":"alcohol","booze":"alcohol","hooch":"alcohol","alprazolam":"benzodiazepines","xanax":"benzodiazepines","prazolam":"benzodiazepines","ksalol":"benzodiazepines","niravam":"benzodiazepines","amphetamine":"amphetamines","speed":"amphetamines","pepp":"amphetamines","amphetamines":"amphetamines","amphetamin":"amphetamines","amfetamine":"amphetamines","amph":"amphetamines","hearts":"amphetamines","pep":"amphetamines","bentazepam":"benzodiazepines","thiadipone":"benzodiazepines","tiadipona":"benzodiazepines","benzodioxolefentanyl":"opioids","bromadol":"opioids","bdpc":"opioids","bromazepam":"benzodiazepines","lectopam":"benzodiazepines","lexilium":"benzodiazepines","lexotan":"benzodiazepines","brazepam":"benzodiazepines","lexotanil":"benzodiazepines","bromazolam":"benzodiazepines","xli268":"benzodiazepines","brotizolam":"benzodiazepines","lendormin":"benzodiazepines","buprenorphine":"opioids","suboxone":"opioids","subs":"opioids","bupe":"opioids","butyrfentanyl":"opioids","bf":"opioids","caffeine":"caffeine","coffee":"caffeine","camazepam":"benzodiazepines","albego":"benzodiazepines","limpidon":"benzodiazepines","paxor":"benzodiazepines","cannabis":"cannabis","weed":"cannabis","thc":"cannabis","marijuana":"cannabis","dagga":"cannabis","hash":"cannabis","citalopram":"ssris","celexa":"ssris","cipramil":"ssris","clobazam":"benzodiazepines","frisium":"benzodiazepines","clonazepam":"benzodiazepines","klonopin":"benzodiazepines","kpin":"benzodiazepines","clonazolam":"benzodiazepines","clam":"benzodiazepines","cloniprazepam":"benzodiazepines","clonitazene":"opioids","clorazepate":"benzodiazepines","tranxene":"benzodiazepines","novoclopate":"benzodiazepines","tranzene":"benzodiazepines","clotiazepam":"benzodiazepines","clozan":"benzodiazepines","distensan":"benzodiazepines","trecalmo":"benzodiazepines","rize":"benzodiazepines","rizen":"benzodiazepines","veratran":"benzodiazepines","cocaine":"cocaine","coke":"cocaine","codeine":"opioids","cyclopentylfentanyl":"opioids","cpf":"opioids","delorazepam":"benzodiazepines","nordiclazepam":"benzodiazepines","demerol":"opioids","pethidine":"opioids","meperidine":"opioids","deschloroetizolam":"benzodiazepines","etizolam2":"benzodiazepines","desmethylflunitrazepam":"benzodiazepines","fonazepam":"benzodiazepines","ro054435":"benzodiazepines","norflunitrazepam":"benzodiazepines","dextropropoxyphene":"opioids","darvocet":"opioids","coproxamol":"opioids","capadex":"opioids","digesic":"opioids","diazepam":"benzodiazepines","valium":"benzodiazepines","diclazepam":"benzodiazepines","dihydrocodeine":"opioids","dhc":"opioids","dipipanone":"opioids","diconal":"opioids","escitalopram":"ssris","lexapro":"ssris","cipralex":"ssris","estazolam":"benzodiazepines","prosom":"benzodiazepines","eurodin":"benzodiazepines","elprazolam":"benzodiazepines","ethylmorphine":"opioids","etizolam":"benzodiazepines","etiz":"benzodiazepines","etizest":"benzodiazepines","etilaam":"benzodiazepines","sedekopan":"benzodiazepines","depas":"benzodiazepines","etizola":"benzodiazepines","inxity":"benzodiazepines","zoly":"benzodiazepines","lamet":"benzodiazepines","towa":"benzodiazepines","fentanyl":"opioids","fent":"opioids","flualprazolam":"benzodiazepines","flubromazepam":"benzodiazepines","flubromazolam":"benzodiazepines","flam":"benzodiazepines","fluclotizolam":"benzodiazepines","flunitrazepam":"benzodiazepines","roofies":"benzodiazepines","rohypnol":"benzodiazepines","flunitrazolam":"benzodiazepines","fln":"benzodiazepines","fluoxetine":"ssris","prozac":"ssris","sarafem":"ssris","flurazepam":"benzodiazepines","dalmane":"benzodiazepines","flutazolam":"benzodiazepines","flutoprazepam":"benzodiazepines","restas":"benzodiazepines","fluvoxamine":"ssris","luvox":"ssris","faverin":"ssris","furanylfentanyl":"opioids","fuf":"opioids","gbl":"ghb/gbl","ghb":"ghb/gbl","glaucine":"opioids","halazepam":"benzodiazepines","paxipam":"benzodiazepines","heroin":"opioids","diamorphine":"opioids","hydrocodone":"opioids","vicodin":"opioids","hydro":"opioids","hydromorphone":"opioids","dilaudid":"opioids","diluadid":"opioids","ibogaine":"opioids","iboga":"opioids","ic26":"opioids","methiodone":"opioids","isomethadone":"opioids","ketamine":"ketamine","k":"ketamine","ket":"ketamine","kitty":"ketamine","kittens":"ketamine","specialk":"ketamine","ketobemidone":"opioids","kbd":"opioids","kratom":"opioids","librium":"benzodiazepines","chlordiazepoxide":"benzodiazepines","lorazepam":"benzodiazepines","ativan":"benzodiazepines","lormetazepam":"benzodiazepines","noctamid":"benzodiazepines","lsd":"lsd","lsd25":"lsd","acid":"lsd","cid":"lsd","lucy":"lsd","mdma":"mdma","molly":"mdma","ecstasy":"mdma","adam":"mdma","xtc":"mdma","mandy":"mdma","x":"mdma","md":"mdma","meclonazepam":"benzodiazepines","medazepam":"benzodiazepines","nobrium":"benzodiazepines","azepamid":"benzodiazepines","rudotel":"benzodiazepines","raporan":"benzodiazepines","mezapam":"benzodiazepines","talis":"benzodiazepines","mephedrone":"mephedrone","4mmc":"mephedrone","meowmeow":"mephedrone","mcat":"mephedrone","4methylmethcathinone":"mephedrone","methadone":"opioids","methoxyacetylfentanyl":"opioids","maf":"opioids","desfluoroocfentanil":"opioids","metizolam":"benzodiazepines","metiz":"benzodiazepines","desmethyletizolam":"benzodiazepines","midazolam":"benzodiazepines","moclobemide":"maois","morpheridine":"opioids","morphine":"opioids","mt45":"opioids","ic6":"opioids","mushrooms":"mushrooms","psilocybin":"mushrooms","shrooms":"mushrooms","mushroom":"mushrooms","psylocybin":"mushrooms","nicomorphine":"opioids","nifoxipam":"benzodiazepines","nimetazepam":"benzodiazepines","erimin":"benzodiazepines","nitemazepam":"benzodiazepines","3hydroxynimetazepam":"benzodiazepines","nitrazepam":"benzodiazepines","mogadon":"benzodiazepines","baronite":"benzodiazepines","dormin":"benzodiazepines","dreem":"benzodiazepines","enzed":"benzodiazepines","gentravit":"benzodiazepines","hypnonex":"benzodiazepines","hypnoril":"benzodiazepines","hypnotex":"benzodiazepines","konit":"benzodiazepines","nicare":"benzodiazepines","nigap":"benzodiazepines","nipam":"benzodiazepines","nirosun":"benzodiazepines","nitavan":"benzodiazepines","nithra":"benzodiazepines","nitrazolam":"benzodiazepines","nitrous":"nitrous","n2o":"nitrous","laughinggas":"nitrous","n20":"nitrous","nos":"nitrous","nitrousoxide":"nitrous","hippycrack":"nitrous","nordazepam":"benzodiazepines","nordaz":"benzodiazepines","nordiazepam":"benzodiazepines","desmethyldiazepam":"benzodiazepines","norflurazepam":"benzodiazepines","ndesalkylflurazepam":"benzodiazepines","odesmethyltramadol":"opioids","odt":"opioids","osmt":"opioids","odsmt":"opioids","opium":"opioids","o":"opioids","oxazepam":"benzodiazepines","serax":"benzodiazepines","oxycodone":"opioids","oxy":"opioids","oxycontin":"opioids","percocet":"opioids","oxynorm":"opioids","oxymorphone":"opioids","opana":"opioids","stopsigns":"opioids","palfium":"opioids","dextromoramide":"opioids","parafluorobutyrfentanyl":"opioids","4fluorobutyrfentanyl":"opioids","pfbf":"opioids","4fbf":"opioids","parafluorofentanyl":"opioids","pff":"opioids","4fluorofentanyl":"opioids","paroxetine":"ssris","paxil":"ssris","seroxat":"ssris","pentazocine":"opioids","talwin":"opioids","phenazepam":"benzodiazepines","pinazepam":"benzodiazepines","domar":"benzodiazepines","prazepam":"benzodiazepines","centrac":"benzodiazepines","centrax":"benzodiazepines","demetrin":"benzodiazepines","lysanxia":"benzodiazepines","pozapam":"benzodiazepines","prasepine":"benzodiazepines","prazene":"benzodiazepines","reapam":"benzodiazepines","trepidan":"benzodiazepines","propoxyphene":"opioids","pst":"opioids","poppyseedtea":"opioids","poppytea":"opioids","pyrazolam":"benzodiazepines","quazepam":"benzodiazepines","doral":"benzodiazepines","rilmazafone":"benzodiazepines","rhythmy":"benzodiazepines","sertraline":"ssris","zoloft":"ssris","lustral":"ssris","sufentanil":"opioids","tapentadol":"opioids","temazepam":"benzodiazepines","restoril":"benzodiazepines","tetrahydrofuranfentanyl":"opioids","thff":"opioids","tetrazepam":"benzodiazepines","tianeptine":"opioids","tilidine":"opioids","tilidate":"opioids","tilidin":"opioids","valoron":"opioids","valtran":"opioids","tramadol":"tramadol","tram":"tramadol","triazolam":"benzodiazepines","halcion":"benzodiazepines","u47700":"opioids","u49900":"opioids","u51754":"opioids","metheneu47700":"opioids","valerylfentanyl":"opioids","vf":"opioids","w15":"opioids","zolazepam":"benzodiazepines"}};
+    const TRIPSIT = {"snapshot":"2026-09-29","pairs":{"ketamine|mdma":{"s":"Low Risk & Synergy","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of  this combination may be ill advised due to risk of physical injury."},"amphetamines|mdma":{"s":"Caution","n":"This combination of stimulants will increase strain on the heart, may cause some physical discomfort, and has the chance to cause cardiovascular issues. The anxiogenic and focusing effects of stimulants can increase the chance of unpleasant thought loops and make the experience more uncomfortable, this combination raises these chances. Amphetamines will increase the neurotoxic effects of MDMA, in addition to causing further concerns of hyperthermia due to the inherent nature of the combination. It will also raise one's body temperature, also likely making the combination more neurotoxic."},"mdma|mephedrone":{"s":"Dangerous","n":"Risk of serotonin syndrome as both drugs raise serotonin levels. Stimulants also increase the neurotoxic effects of MDMA, in addition to concerns of high blood pressure and unnecessary strain on the heart. As well as potentially causing anxiety and greater physical discomfort due to the combination."},"cocaine|mdma":{"s":"Caution","n":"Cocaine blocks some of the desirable effects of MDMA while increasing the risk of heart attack."},"ghb/gbl|mdma":{"s":"Caution","n":"Large amounts of GHB/GBL may overwhelm the effects of MDMA on the comedown."},"2c-x|mdma":{"s":"Low Risk & Synergy"},"lsd|mdma":{"s":"Low Risk & Synergy"},"mdma|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|mdma":{"s":"Low Risk & Synergy","n":"Large amounts of cannabis may cause strong and somewhat unpredictable experiences in combination with MDMA. Cannabis should be saved for towards the end of the experience if possible."},"alcohol|mdma":{"s":"Caution","n":"The combination of MDMA and alcohol may increase strain on the cardiovascular system and lead to increased alcohol consumption. MDMA may also impair one's ability to recognize their level of drunkenness, leading to increased alcohol consumption and poor decision-making. Alcohol may also increase the risk of dehydration and hyperthermia (increased body temperature) when combined with MDMA."},"benzodiazepines|mdma":{"s":"Low Risk & Decrease"},"mdma|opioids":{"s":"Low Risk & No Synergy"},"mdma|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"caffeine|mdma":{"s":"Caution","n":"Caffeine is not really necessary with MDMA and increases any neurotoxic effects from MDMA"},"mdma|nitrous":{"s":"Low Risk & Synergy"},"mdma|ssris":{"s":"Low Risk & Decrease"},"maois|mdma":{"s":"Dangerous","n":"MAO-B inhibitors can increase the potency and duration of phenethylamines unpredictably. MAO-A inhibitors with MDMA will lead to hypertensive crises."},"amphetamines|ketamine":{"s":"Caution","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of this combination may be ill advised due to risk of physical injury."},"cocaine|ketamine":{"s":"Caution","n":"No unexpected interactions, though likely to increase blood pressure but not an issue with sensible doses. Moving around on high doses of this combination may be ill advised due to risk of physical injury."},"ghb/gbl|ketamine":{"s":"Dangerous","n":"Both substances cause ataxia and bring a risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"2c-x|ketamine":{"s":"Low Risk & Synergy"},"ketamine|lsd":{"s":"Low Risk & Synergy"},"ketamine|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|ketamine":{"s":"Low Risk & Synergy"},"alcohol|ketamine":{"s":"Dangerous","n":"Both substances cause ataxia and bring a very high risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"benzodiazepines|ketamine":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position."},"ketamine|opioids":{"s":"Dangerous","n":"Both substances bring a risk of vomiting and unconsciousness. If the user falls unconscious while under the influence there is a severe risk of vomit aspiration if they are not placed in the recovery position."},"ketamine|tramadol":{"s":"Dangerous"},"caffeine|ketamine":{"s":"Low Risk & No Synergy","n":"No unexpected interactions."},"ketamine|nitrous":{"s":"Low Risk & Synergy"},"ketamine|ssris":{"s":"Low Risk & No Synergy"},"ketamine|maois":{"s":"Caution","n":"MAO-B inhibitors appear to increase the potency of Ketamine. MAO-A inhbitors have some negative reports associated with the combination but there isn't much information available"},"amphetamines|cocaine":{"s":"Caution","n":"This combination of stimulants will increase strain on the heart. It is not generally worth it as cocaine has a mild blocking effect on dopamine releasers like amphetamine"},"amphetamines|ghb/gbl":{"s":"Caution","n":"Stimulants increase respiration rate allowing for a higher dose of sedatives. If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"2c-x|amphetamines":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops. The combination is generally unnecessary because of the stimulating effects of psychedelics. Combination of the stimulating effects may be uncomfortable."},"amphetamines|lsd":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"amphetamines|mushrooms":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"amphetamines|cannabis":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"alcohol|amphetamines":{"s":"Caution","n":"Drinking on stimulants is risky because the sedative effects of the alcohol are reduced, and these are what the body uses to gauge drunkenness. This typically leads to excessive drinking with greatly reduced inhibitions, high risk of liver damage and increased dehydration. They will also allow you to drink past a point where you might normally pass out, increasing the risk. If you do decide to do this then you should set a limit of how much you will drink each hour and stick to it, bearing in mind that you will feel the alcohol and the stimulant less. Extended release formulations may severely impede sleep, further worsening the hangover."},"amphetamines|benzodiazepines":{"s":"Low Risk & Decrease","n":"Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction"},"amphetamines|opioids":{"s":"Caution","n":"Stimulants increase respiration rate, which can allow for a higher dose of opiates normal . If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"amphetamines|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"amphetamines|caffeine":{"s":"Caution","n":"This combination of stimulants is not generally necessary and may increase strain on the heart, as well as potentially causing anxiety and greater physical discomfort."},"amphetamines|nitrous":{"s":"Low Risk & Synergy"},"amphetamines|ssris":{"s":"Low Risk & No Synergy"},"amphetamines|maois":{"s":"Dangerous","n":"MAO-B inhibitors can increase the potency and duration of phenethylamines unpredictably. MAO-A inhibitors with amphetamine can lead to hypertensive crises."},"ghb/gbl|mephedrone":{"s":"Caution","n":"Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction. Both substances affect the heart and may lead to further dangerous heart complications at higher dosages. Additionally, the combination may increase the negative side effects of each other."},"lsd|mephedrone":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops, in addition to the possible negative side effects of coming down from said stimulant while on a psychedelic. In extreme cases, stimulants, especially in combination can result in severe vasoconstriction, tachycardia, hypertension, and heart failure."},"mephedrone|mushrooms":{"s":"Low Risk & Synergy","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"mephedrone|opioids":{"s":"Caution","n":"Stimulants increase respiration rate allowing a higher dose of opiates. If the stimulant wears off first then the opiate may overcome the patient and cause respiratory arrest."},"mephedrone|tramadol":{"s":"Dangerous","n":"There is a high risk of serotonin syndrome and seizures at recreational dosages. Both substances affect the heart and may lead to further dangerous heart complications at higher dosages. Both can dull each other's effects, so if one wears off before the other it's possible to overdose due to the lack of counteraction. The combination may increase each other's side effects, such as dizziness and drowsiness. At higher dosages, the combination may increase each other’s side effects, such as delirium, mania, and psychosis."},"caffeine|mephedrone":{"s":"Caution","n":"This combination of stimulants is not generally necessary and may increase strain on the heart, as well as potentially causing anxiety and great physical discomfort. However, individual responses to caffeine can vary significantly, often influenced by factors like habitual versus occasional usage."},"cocaine|ghb/gbl":{"s":"Caution","n":"Stimulants increase respiration rate allowing for a higher dose of sedatives than normal. If the stimulant wears off first the opiate may overcome the individual and cause respiratory arrest. Likewise the ghb/gbl can wear off and leave a dangerous concentration of cocaine behind"},"2c-x|cocaine":{"s":"Caution","n":"The anxiogenic and focusing effects of stimulants increase the chance of unpleasant thought loops. The combination is generally unnecessary because of the stimulating effects of psychedelics. Combination of the stimulating effects may be uncomfortable."},"cocaine|lsd":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"cocaine|mushrooms":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"cannabis|cocaine":{"s":"Caution","n":"Stimulants increase anxiety levels and the risk of thought loops which can lead to negative experiences"},"alcohol|cocaine":{"s":"Unsafe","n":"Cocaine can decrease some of the intoxicating effects of alcohol, causing some people to drink more than they otherwise would, which leads to greater behavioral and physical health risks. There is also some debate about cocaethylene, a metabolite produced when combining alcohol and cocaine, with some researchers positing that it is more cardiotoxic than cocaine on its own. Use moderation when combining these substances."},"benzodiazepines|cocaine":{"s":"Low Risk & Decrease"},"cocaine|opioids":{"s":"Dangerous","n":"Stimulants increase respiration rate allowing for a higher dose of opiates than normal. If the stimulant wears off first then the opiate may overcome the individual and cause respiratory arrest."},"cocaine|tramadol":{"s":"Dangerous","n":"Tramadol and stimulants both increase the risk of seizures."},"caffeine|cocaine":{"s":"Caution","n":"Both stimulants, risk of tachycardia, hypertension, and in extreme cases heart failure."},"cocaine|nitrous":{"s":"Low Risk & Synergy"},"cocaine|ssris":{"s":"Low Risk & No Synergy","n":"May reduce each others' effectiveness. Cocaine can reduce mental stability and therefore exacerbate conditions which SSRIs are used to treat."},"cocaine|maois":{"s":"Dangerous","n":"This combination is poorly explored"},"2c-x|ghb/gbl":{"s":"Low Risk & Decrease"},"ghb/gbl|lsd":{"s":"Low Risk & Decrease"},"ghb/gbl|mushrooms":{"s":"Low Risk & Decrease"},"cannabis|ghb/gbl":{"s":"Low Risk & Synergy"},"alcohol|ghb/gbl":{"s":"Dangerous","n":"Even in very low doses this combination rapidly leads to memory loss, severe ataxia and unconsciousness. There is a high risk of vomit aspiration while unconscious."},"benzodiazepines|ghb/gbl":{"s":"Dangerous","n":"The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position."},"ghb/gbl|opioids":{"s":"Dangerous","n":"The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position"},"ghb/gbl|tramadol":{"s":"Dangerous","n":"The sedative effects of this combination can lead to dangerous respiratory depression."},"caffeine|ghb/gbl":{"s":"Low Risk & No Synergy"},"ghb/gbl|nitrous":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"ghb/gbl|ssris":{"s":"Low Risk & No Synergy"},"ghb/gbl|maois":{"s":"Low Risk & Synergy"},"2c-x|lsd":{"s":"Low Risk & Synergy"},"2c-x|mushrooms":{"s":"Low Risk & Synergy"},"2c-x|cannabis":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"2c-x|alcohol":{"s":"Low Risk & Decrease"},"2c-x|benzodiazepines":{"s":"Low Risk & Decrease"},"2c-x|opioids":{"s":"Low Risk & No Synergy"},"2c-x|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics raise the risk of seizures."},"2c-x|caffeine":{"s":"Low Risk & No Synergy","n":"High doses of caffeine may cause anxiety which is less manageable when tripping, and since both are stimulating the combination may cause some physical discomfort."},"2c-x|nitrous":{"s":"Low Risk & Synergy"},"2c-x|ssris":{"s":"Low Risk & Decrease"},"2c-x|maois":{"s":"Caution","n":"MAO-B inhibitors can increase the potency and duration of phenethylamines unpredictably"},"lsd|mushrooms":{"s":"Low Risk & Synergy"},"cannabis|lsd":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"alcohol|lsd":{"s":"Low Risk & Decrease"},"benzodiazepines|lsd":{"s":"Low Risk & Decrease"},"lsd|opioids":{"s":"Low Risk & No Synergy"},"lsd|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics also cause occasional seizures."},"caffeine|lsd":{"s":"Low Risk & No Synergy"},"lsd|nitrous":{"s":"Low Risk & Synergy"},"lsd|ssris":{"s":"Low Risk & Decrease"},"lsd|maois":{"s":"Low Risk & Decrease"},"cannabis|mushrooms":{"s":"Caution","n":"Cannabis has an unexpectedly strong and somewhat unpredictable synergy with psychedelics."},"alcohol|mushrooms":{"s":"Low Risk & Decrease"},"benzodiazepines|mushrooms":{"s":"Low Risk & Decrease"},"mushrooms|opioids":{"s":"Low Risk & No Synergy"},"mushrooms|tramadol":{"s":"Unsafe","n":"Tramadol is well known to lower seizure threshold and psychedelics also cause occasional seizures."},"caffeine|mushrooms":{"s":"Low Risk & No Synergy"},"mushrooms|nitrous":{"s":"Low Risk & Synergy"},"mushrooms|ssris":{"s":"Low Risk & Decrease"},"maois|mushrooms":{"s":"Low Risk & Synergy"},"alcohol|cannabis":{"s":"Low Risk & Synergy","n":"In excess, this combination can cause nausea."},"benzodiazepines|cannabis":{"s":"Low Risk & Decrease"},"cannabis|opioids":{"s":"Low Risk & Synergy"},"cannabis|tramadol":{"s":"Low Risk & Synergy"},"caffeine|cannabis":{"s":"Low Risk & No Synergy"},"cannabis|nitrous":{"s":"Low Risk & Synergy"},"cannabis|ssris":{"s":"Low Risk & No Synergy"},"cannabis|maois":{"s":"Low Risk & Synergy"},"alcohol|benzodiazepines":{"s":"Dangerous","n":"Ethanol ingestion may potentiate the CNS effects of many benzodiazepines. The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Blacking out and memory loss is almost certain."},"alcohol|opioids":{"s":"Dangerous","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. Place the affected individual in the recovery position to prevent vomit aspiration from excess. Memory blackouts are likely"},"alcohol|tramadol":{"s":"Dangerous","n":"Heavy CNS depressants, risk of seizures. Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. Place the affected individual in the recovery position to prevent vomit aspiration from excess. Memory blackouts are likely."},"alcohol|caffeine":{"s":"Low Risk & No Synergy"},"alcohol|nitrous":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"alcohol|ssris":{"s":"Caution","n":"Alcohol may potentiate some of the pharmacologic effects of CNS-active agents. Use in combination may result in additive central nervous system depression and/or impairment of judgment, thinking, and  psychomotor skills."},"alcohol|maois":{"s":"Unsafe","n":"Tyramine found in many alcoholic beverages can have dangerous reactions with MAOIs, causing an increase in blood pressure."},"benzodiazepines|opioids":{"s":"Dangerous","n":"Central nervous system and/or respiratory-depressant effects may be additively or synergistically present. The two substances potentiate each other strongly and unpredictably, very rapidly leading to unconsciousness. While unconscious, vomit aspiration is a risk if not placed in the recovery position Blackouts/memory loss likely"},"benzodiazepines|tramadol":{"s":"Dangerous","n":"Central nervous system- and/or respiratory-depressant effects may be additively or synergistically present. Vomit aspiration is a risk when passed out, lay down in recovery position if ingested."},"benzodiazepines|caffeine":{"s":"Low Risk & Decrease"},"benzodiazepines|nitrous":{"s":"Low Risk & Decrease"},"benzodiazepines|ssris":{"s":"Low Risk & No Synergy"},"benzodiazepines|maois":{"s":"Low Risk & Synergy"},"opioids|tramadol":{"s":"Dangerous","n":"Concomitant use of tramadol increases the seizure risk in individuals taking other opioids. These agents are often individually epileptogenic and may have additive effects on seizure threshold during coadministration. Central nervous system- and/or respiratory-depressant effects may be additively or synergistically present"},"caffeine|opioids":{"s":"Low Risk & No Synergy"},"nitrous|opioids":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"opioids|ssris":{"s":"Low Risk & No Synergy","n":"There have been some case reports of serotonin syndrome in individuals who were given a combination of opioids and SSRIs. Other research has indicated a small increase in overdose risk for people who are prescribed CYP2D6-inhibiting SSRIs (e.g. fluoxetine and paroxetine) with oxycodone. Overall, risk is low with this combination but, as always, be mindful of your consumption."},"maois|opioids":{"s":"Caution","n":"Coadministration of monoamine oxidase inhibitors (MAOIs) with certain opioids has been associated with rare reports of severe and fatal adverse reactions. There appear to be two types of interaction, an excitatory and a depressive one. Symptoms of the excitatory reaction may include agitation, headache, diaphoresis, hyperpyrexia, flushing, shivering, myoclonus, rigidity, tremor, diarrhea, hypertension, tachycardia, seizures, and coma. Death has occurred in some cases."},"caffeine|tramadol":{"s":"Low Risk & No Synergy"},"nitrous|tramadol":{"s":"Caution","n":"Both substances potentiate the ataxia and sedation caused by the other and can lead to unexpected loss of consciousness at high doses. While unconscious, vomit aspiration is a risk if not placed in the recovery position. Memory blackouts are likely."},"ssris|tramadol":{"s":"Dangerous"},"maois|tramadol":{"s":"Dangerous"},"caffeine|nitrous":{"s":"Low Risk & No Synergy"},"caffeine|ssris":{"s":"Low Risk & No Synergy"},"caffeine|maois":{"s":"Low Risk & No Synergy"},"nitrous|ssris":{"s":"Low Risk & No Synergy"},"maois|nitrous":{"s":"Low Risk & No Synergy"},"maois|ssris":{"s":"Dangerous"}},"names":{"2cb":"2c-x","bees":"2c-x","nexus":"2c-x","2cban":"2c-x","2cbfly":"2c-x","2cbflynbome":"2c-x","2cc":"2c-x","2cd":"2c-x","2cm":"2c-x","2ce":"2c-x","2cg":"2c-x","2cg5":"2c-x","2ci":"2c-x","2cip":"2c-x","2cn":"2c-x","2cp":"2c-x","2ct":"2c-x","2ct2":"2c-x","2ct4":"2c-x","2ct7":"2c-x","2ct21":"2c-x","3ohphenazepam":"benzodiazepines","3hophenazepam":"benzodiazepines","3hop":"benzodiazepines","3ohp":"benzodiazepines","3hydroxyphenazepam":"benzodiazepines","4meobutryfentanyl":"opioids","4meobutyrfentanyl":"opioids","4meobf":"opioids","6mddm":"opioids","6methylenedihydrodesoxymorphine":"opioids","acetylfentanyl":"opioids","af":"opioids","acrylfentanyl":"opioids","ah7921":"opioids","alcohol":"alcohol","etoh":"alcohol","beer":"alcohol","ethanol":"alcohol","booze":"alcohol","hooch":"alcohol","alprazolam":"benzodiazepines","xanax":"benzodiazepines","prazolam":"benzodiazepines","ksalol":"benzodiazepines","niravam":"benzodiazepines","amphetamine":"amphetamines","speed":"amphetamines","pepp":"amphetamines","amphetamines":"amphetamines","amphetamin":"amphetamines","amfetamine":"amphetamines","amph":"amphetamines","hearts":"amphetamines","pep":"amphetamines","bentazepam":"benzodiazepines","thiadipone":"benzodiazepines","tiadipona":"benzodiazepines","benzodioxolefentanyl":"opioids","bromadol":"opioids","bdpc":"opioids","bromazepam":"benzodiazepines","lectopam":"benzodiazepines","lexilium":"benzodiazepines","lexotan":"benzodiazepines","brazepam":"benzodiazepines","lexotanil":"benzodiazepines","bromazolam":"benzodiazepines","xli268":"benzodiazepines","brotizolam":"benzodiazepines","lendormin":"benzodiazepines","buprenorphine":"opioids","suboxone":"opioids","subs":"opioids","bupe":"opioids","butyrfentanyl":"opioids","bf":"opioids","caffeine":"caffeine","coffee":"caffeine","camazepam":"benzodiazepines","albego":"benzodiazepines","limpidon":"benzodiazepines","paxor":"benzodiazepines","cannabis":"cannabis","weed":"cannabis","thc":"cannabis","marijuana":"cannabis","dagga":"cannabis","hash":"cannabis","citalopram":"ssris","celexa":"ssris","cipramil":"ssris","clobazam":"benzodiazepines","frisium":"benzodiazepines","clonazepam":"benzodiazepines","klonopin":"benzodiazepines","kpin":"benzodiazepines","clonazolam":"benzodiazepines","clam":"benzodiazepines","cloniprazepam":"benzodiazepines","clonitazene":"opioids","clorazepate":"benzodiazepines","tranxene":"benzodiazepines","novoclopate":"benzodiazepines","tranzene":"benzodiazepines","clotiazepam":"benzodiazepines","clozan":"benzodiazepines","distensan":"benzodiazepines","trecalmo":"benzodiazepines","rize":"benzodiazepines","rizen":"benzodiazepines","veratran":"benzodiazepines","cocaine":"cocaine","coke":"cocaine","codeine":"opioids","cyclopentylfentanyl":"opioids","cpf":"opioids","delorazepam":"benzodiazepines","nordiclazepam":"benzodiazepines","demerol":"opioids","pethidine":"opioids","meperidine":"opioids","deschloroetizolam":"benzodiazepines","etizolam2":"benzodiazepines","desmethylflunitrazepam":"benzodiazepines","fonazepam":"benzodiazepines","ro054435":"benzodiazepines","norflunitrazepam":"benzodiazepines","dextropropoxyphene":"opioids","darvocet":"opioids","coproxamol":"opioids","capadex":"opioids","digesic":"opioids","diazepam":"benzodiazepines","valium":"benzodiazepines","diclazepam":"benzodiazepines","dihydrocodeine":"opioids","dhc":"opioids","dipipanone":"opioids","diconal":"opioids","escitalopram":"ssris","lexapro":"ssris","cipralex":"ssris","estazolam":"benzodiazepines","prosom":"benzodiazepines","eurodin":"benzodiazepines","elprazolam":"benzodiazepines","ethylmorphine":"opioids","etizolam":"benzodiazepines","etiz":"benzodiazepines","etizest":"benzodiazepines","etilaam":"benzodiazepines","sedekopan":"benzodiazepines","depas":"benzodiazepines","etizola":"benzodiazepines","inxity":"benzodiazepines","zoly":"benzodiazepines","lamet":"benzodiazepines","towa":"benzodiazepines","fentanyl":"opioids","fent":"opioids","flualprazolam":"benzodiazepines","flubromazepam":"benzodiazepines","flubromazolam":"benzodiazepines","flam":"benzodiazepines","fluclotizolam":"benzodiazepines","flunitrazepam":"benzodiazepines","roofies":"benzodiazepines","rohypnol":"benzodiazepines","flunitrazolam":"benzodiazepines","fln":"benzodiazepines","fluoxetine":"ssris","prozac":"ssris","sarafem":"ssris","flurazepam":"benzodiazepines","dalmane":"benzodiazepines","flutazolam":"benzodiazepines","flutoprazepam":"benzodiazepines","restas":"benzodiazepines","fluvoxamine":"ssris","luvox":"ssris","faverin":"ssris","furanylfentanyl":"opioids","fuf":"opioids","gbl":"ghb/gbl","ghb":"ghb/gbl","glaucine":"opioids","halazepam":"benzodiazepines","paxipam":"benzodiazepines","heroin":"opioids","diamorphine":"opioids","hydrocodone":"opioids","vicodin":"opioids","hydro":"opioids","hydromorphone":"opioids","dilaudid":"opioids","diluadid":"opioids","ibogaine":"opioids","iboga":"opioids","ic26":"opioids","methiodone":"opioids","isomethadone":"opioids","ketamine":"ketamine","k":"ketamine","ket":"ketamine","kitty":"ketamine","kittens":"ketamine","specialk":"ketamine","ketobemidone":"opioids","kbd":"opioids","kratom":"opioids","librium":"benzodiazepines","chlordiazepoxide":"benzodiazepines","lorazepam":"benzodiazepines","ativan":"benzodiazepines","lormetazepam":"benzodiazepines","noctamid":"benzodiazepines","lsd":"lsd","lsd25":"lsd","acid":"lsd","cid":"lsd","lucy":"lsd","mdma":"mdma","molly":"mdma","ecstasy":"mdma","adam":"mdma","xtc":"mdma","mandy":"mdma","x":"mdma","md":"mdma","meclonazepam":"benzodiazepines","medazepam":"benzodiazepines","nobrium":"benzodiazepines","azepamid":"benzodiazepines","rudotel":"benzodiazepines","raporan":"benzodiazepines","mezapam":"benzodiazepines","talis":"benzodiazepines","mephedrone":"mephedrone","4mmc":"mephedrone","meowmeow":"mephedrone","mcat":"mephedrone","4methylmethcathinone":"mephedrone","methadone":"opioids","methoxyacetylfentanyl":"opioids","maf":"opioids","desfluoroocfentanil":"opioids","metizolam":"benzodiazepines","metiz":"benzodiazepines","desmethyletizolam":"benzodiazepines","midazolam":"benzodiazepines","moclobemide":"maois","morpheridine":"opioids","morphine":"opioids","mt45":"opioids","ic6":"opioids","mushrooms":"mushrooms","psilocybin":"mushrooms","shrooms":"mushrooms","mushroom":"mushrooms","psylocybin":"mushrooms","nicomorphine":"opioids","nifoxipam":"benzodiazepines","nimetazepam":"benzodiazepines","erimin":"benzodiazepines","nitemazepam":"benzodiazepines","3hydroxynimetazepam":"benzodiazepines","nitrazepam":"benzodiazepines","mogadon":"benzodiazepines","baronite":"benzodiazepines","dormin":"benzodiazepines","dreem":"benzodiazepines","enzed":"benzodiazepines","gentravit":"benzodiazepines","hypnonex":"benzodiazepines","hypnoril":"benzodiazepines","hypnotex":"benzodiazepines","konit":"benzodiazepines","nicare":"benzodiazepines","nigap":"benzodiazepines","nipam":"benzodiazepines","nirosun":"benzodiazepines","nitavan":"benzodiazepines","nithra":"benzodiazepines","nitrazolam":"benzodiazepines","nitrous":"nitrous","n2o":"nitrous","laughinggas":"nitrous","n20":"nitrous","nos":"nitrous","nitrousoxide":"nitrous","hippycrack":"nitrous","nordazepam":"benzodiazepines","nordaz":"benzodiazepines","nordiazepam":"benzodiazepines","desmethyldiazepam":"benzodiazepines","norflurazepam":"benzodiazepines","ndesalkylflurazepam":"benzodiazepines","odesmethyltramadol":"opioids","odt":"opioids","osmt":"opioids","odsmt":"opioids","opium":"opioids","o":"opioids","oxazepam":"benzodiazepines","serax":"benzodiazepines","oxycodone":"opioids","oxy":"opioids","oxycontin":"opioids","percocet":"opioids","oxynorm":"opioids","oxymorphone":"opioids","opana":"opioids","stopsigns":"opioids","palfium":"opioids","dextromoramide":"opioids","parafluorobutyrfentanyl":"opioids","4fluorobutyrfentanyl":"opioids","pfbf":"opioids","4fbf":"opioids","parafluorofentanyl":"opioids","pff":"opioids","4fluorofentanyl":"opioids","paroxetine":"ssris","paxil":"ssris","seroxat":"ssris","pentazocine":"opioids","talwin":"opioids","phenazepam":"benzodiazepines","pinazepam":"benzodiazepines","domar":"benzodiazepines","prazepam":"benzodiazepines","centrac":"benzodiazepines","centrax":"benzodiazepines","demetrin":"benzodiazepines","lysanxia":"benzodiazepines","pozapam":"benzodiazepines","prasepine":"benzodiazepines","prazene":"benzodiazepines","reapam":"benzodiazepines","trepidan":"benzodiazepines","propoxyphene":"opioids","pst":"opioids","poppyseedtea":"opioids","poppytea":"opioids","pyrazolam":"benzodiazepines","quazepam":"benzodiazepines","doral":"benzodiazepines","rilmazafone":"benzodiazepines","rhythmy":"benzodiazepines","sertraline":"ssris","zoloft":"ssris","lustral":"ssris","sufentanil":"opioids","tapentadol":"opioids","temazepam":"benzodiazepines","restoril":"benzodiazepines","tetrahydrofuranfentanyl":"opioids","thff":"opioids","tetrazepam":"benzodiazepines","tianeptine":"opioids","tilidine":"opioids","tilidate":"opioids","tilidin":"opioids","valoron":"opioids","valtran":"opioids","tramadol":"tramadol","tram":"tramadol","triazolam":"benzodiazepines","halcion":"benzodiazepines","u47700":"opioids","u49900":"opioids","u51754":"opioids","metheneu47700":"opioids","valerylfentanyl":"opioids","vf":"opioids","w15":"opioids","zolazepam":"benzodiazepines"}};
     // TRIPSIT-DATA-END
 
     // Combination-picker groups. Tramadol stays separate because TripSit
@@ -1969,11 +2072,17 @@
     }
 
     function openCombo() {
-      // Distinct logged substances, using current card names when available.
+      // Distinct substances from the cards and the log (current card names
+      // when available), so it also works before the first dose.
       const seen = new Map();
-      for (const e of state.entries) {
-        const card = state.drugs.find(d => d.id === e.drugId);
-        const name = (card && card.name) || e.drugNameAtEntry || '';
+      const names = [
+        ...state.drugs.map(d => d.name),
+        ...state.entries.map(e => {
+          const card = state.drugs.find(d => d.id === e.drugId);
+          return (card && card.name) || e.drugNameAtEntry || '';
+        })
+      ];
+      for (const name of names) {
         if (!name || seen.has(nameKey(name))) continue;
         seen.set(nameKey(name), { name, group: tripsitGroupFor(name) });
       }
@@ -1990,7 +2099,7 @@
         }
       }
       comboMatched.hidden = !matchedBits.length;
-      comboMatched.textContent = `From tonight's log: ${matchedBits.join('   ')}`;
+      comboMatched.textContent = `From your substances: ${matchedBits.join('   ')}`;
       comboUnmatched.hidden = !unmatchedBits.length;
       comboUnmatched.textContent = `Not on TripSit's chart: ${unmatchedBits.join(', ')} — not included.`;
       renderComboChips();
@@ -2096,6 +2205,11 @@
       if (!btn || !padTarget) return;
       const k = btn.dataset.key;
       if (k === 'action') { const fn = padAction; closeNumpad(); if (fn) fn(); return; }
+      // A pre-filled "1" is replaced by the first key (⌫ just clears it)
+      if (padTarget.dataset.prefilled) {
+        delete padTarget.dataset.prefilled;
+        padTarget.value = '';
+      }
       let start = padTarget.selectionStart ?? padTarget.value.length;
       const end = padTarget.selectionEnd ?? start;
       if (k === 'back' && start === end) start = Math.max(0, start - 1);
@@ -2120,6 +2234,16 @@
       input.setAttribute('inputmode', 'none'); // keeps the system keyboard closed
       input.addEventListener('focus', () => openNumpad(input, actionLabel, onAction));
       input.addEventListener('blur', () => { if (padTarget === input) closeNumpad(); });
+      // Computer keyboards: the first key replaces a pre-filled "1" too
+      input.addEventListener('keydown', (e) => {
+        if (!input.dataset.prefilled || e.ctrlKey || e.metaKey || e.altKey) return;
+        const erase = e.key === 'Backspace' || e.key === 'Delete';
+        if (e.key.length !== 1 && !erase) return; // Enter, Tab, arrows…
+        delete input.dataset.prefilled;
+        input.value = '';
+        if (erase) e.preventDefault();
+      });
+      input.addEventListener('input', () => { delete input.dataset.prefilled; });
     }
 
     // Every full-reset path uses this one operation, so none can leave old
@@ -2415,6 +2539,216 @@
     const grid = $('#drug-grid');
     const logBody = $('#log-body');
 
+    // =====================================================================
+    // Substance picker: preset tiles first, "Something else…" for typing.
+    // Shown as the empty start screen and in the "+ Add substance" panel.
+    // =====================================================================
+
+    // Unit a typed name suggests; a recognised preset knows best.
+    function guessUnit(name) {
+      const typedPreset = findPresetLoose(name);
+      if (typedPreset) return typedPreset.unit;
+      const low = name.toLowerCase();
+      const linePrefixes = ["amph", "speed", "k ", "ket", "cocaine", "coke", "meph", "3m", "4m"];
+      if (linePrefixes.some(p => low.startsWith(p))) return 'line';
+      if (low.includes('lsd')) return 'µg';
+      if (low.includes('shroom')) return 'g';
+      return null;
+    }
+
+    // Set by "add another" so the new card's title opens pre-filled.
+    let titlePrefill = null;
+
+    function addCard(name, preset, unit) {
+      const drug = { id: uid('drug'), name, expanded: true };
+      drug.color = preset ? preset.color : palette[state.drugs.length % palette.length];
+      if (preset && preset.blend) drug.blend = preset.blend;
+      if (unit) drug.lastUnit = unit; // the dose row's unit picker reads this
+      state.drugs.push(drug);
+      saveState();
+      render();
+      return drug;
+    }
+
+    // Straight into dose entry (opens the in-app number pad). Lines start
+    // at "1" as plain text; the first key typed replaces it (see useNumpad).
+    function focusDose(drug) {
+      const numEl = document.querySelector(`[data-id="${drug.id}"] .dose-grid input`);
+      if (!numEl) return;
+      if (drug.lastUnit === 'line') {
+        numEl.value = '1';
+        numEl.dataset.prefilled = '1';
+      }
+      numEl.focus();
+      const end = numEl.value.length;
+      numEl.setSelectionRange(end, end);
+    }
+
+    // A preset tile was tapped. If that preset already has a card, add a
+    // second one ("Ketamine 2") and open its name so it can become
+    // "Ketamine F" — names must stay unique.
+    function pickPreset(p, taken) {
+      if (!taken) { focusDose(addCard(p.name, p, p.unit)); return; }
+      const names = new Set(state.drugs.map(d => nameKey(d.name)));
+      let i = 2;
+      while (names.has(nameKey(`${p.name} ${i}`))) i++;
+      titlePrefill = null;
+      const drug = addCard(`${p.name} ${i}`, p, p.unit);
+      titlePrefill = { id: drug.id, text: `${p.name} ` };
+      const card = document.querySelector(`[data-id="${drug.id}"]`);
+      const pencil = card && card.querySelector('.title-edit-btn');
+      if (!pencil) { titlePrefill = null; return; }
+      pencil.click(); // inside the tap, so phones open the keyboard
+      // Scrolling can wait until the keyboard starts sliding up
+      setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    }
+
+    // A typed name. A preset word inside it ("Ketamine F") brings that
+    // preset's colour and unit; an exact preset name gets its spelling fixed.
+    function addCustomCard(name) {
+      const exact = findPreset(name);
+      const preset = findPresetLoose(name);
+      focusDose(addCard(exact ? exact.name : name, preset, guessUnit(name)));
+    }
+
+    function buildPresetPicker({ onPreset, onCustom }) {
+      const wrap = document.createElement('div');
+      const tiles = document.createElement('div');
+      tiles.className = 'picker-tiles';
+      const taken = new Set(state.drugs.map(d => nameKey(d.name)));
+
+      const tileEls = PRESETS.map((p) => {
+        const isTaken = taken.has(nameKey(p.name));
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'preset-tile' + (isTaken ? ' taken' : '');
+        b.style.setProperty('--ring', hexToRgba(p.color, 0.16));
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = p.blend ? blendDotCss(BLENDS[p.blend]) : p.color;
+        const label = document.createElement('span');
+        label.className = 'tile-name';
+        label.textContent = p.name;
+        const tick = document.createElement('span');
+        tick.className = 'tile-tick';
+        tick.innerHTML = ICONS.check;
+        b.append(dot, label, tick);
+        if (isTaken) b.setAttribute('aria-label', `${p.name}, already added. Adds another ${p.name} card.`);
+        b.addEventListener('click', () => onPreset(p, isTaken));
+        tiles.appendChild(b);
+        return { p, el: b, taken: isTaken };
+      });
+
+      const none = document.createElement('p');
+      none.className = 'picker-none';
+      none.textContent = 'No match in the list. Tap Add to use your own name.';
+      none.hidden = true;
+
+      const other = document.createElement('div');
+      other.className = 'picker-other';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Something else…';
+      input.setAttribute('aria-label', 'Other substance name');
+      input.setAttribute('autocomplete', 'off');
+      input.setAttribute('autocorrect', 'off');
+      input.setAttribute('autocapitalize', 'sentences');
+      input.setAttribute('spellcheck', 'false');
+      input.setAttribute('enterkeyhint', 'done');
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'add-btn';
+      addBtn.textContent = 'Add';
+      addBtn.disabled = true;
+      other.append(input, addBtn);
+
+      const err = document.createElement('p');
+      err.className = 'picker-error';
+      err.setAttribute('aria-live', 'polite');
+      err.hidden = true;
+
+      // Typing narrows the tiles to matching presets, best match first
+      input.addEventListener('input', () => {
+        const typed = input.value.trim();
+        addBtn.disabled = !typed;
+        err.hidden = true;
+        const shown = typed
+          ? tileEls.map(t => ({ t, s: presetMatchScore(t.p, typed) }))
+              .filter(x => x.s <= 2).sort((a, b) => a.s - b.s).map(x => x.t)
+          : tileEls;
+        for (const t of tileEls) t.el.hidden = !shown.includes(t);
+        for (const t of shown) tiles.appendChild(t.el);
+        none.hidden = shown.length > 0;
+      });
+      const submit = () => {
+        const name = input.value.trim();
+        if (!name) return;
+        if (state.drugs.some(d => nameKey(d.name) === nameKey(name))) {
+          err.textContent = `There's already a card called “${name}”.`;
+          err.hidden = false;
+          return;
+        }
+        onCustom(name);
+      };
+      addBtn.addEventListener('click', submit);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+
+      wrap.append(tiles, none, other, err);
+      return { el: wrap, input };
+    }
+
+    // "+ Add substance" panel. Rebuilt on every open so ticks are current.
+    const addPicker = $('#add-picker');
+    const addPickerBody = $('#add-picker-body');
+    const addPickerModal = setupModal(addPicker, () => {
+      addPicker.classList.remove('typing');
+      addPicker.style.removeProperty('--kb');
+    });
+    function openAddPicker() {
+      addPickerBody.innerHTML = '';
+      // Close first: closing hands focus back to the button, which would
+      // otherwise pull it away from the new card.
+      const picker = buildPresetPicker({
+        onPreset: (p, taken) => { addPickerModal.close(); pickPreset(p, taken); },
+        onCustom: (name) => { addPickerModal.close(); addCustomCard(name); }
+      });
+      addPickerBody.appendChild(picker.el);
+      addPickerModal.open(addPicker.querySelector('.modal'));
+    }
+    $('#add-picker-close').addEventListener('click', () => addPickerModal.close());
+
+    // While typing a name, keep the panel above the on-screen keyboard.
+    function liftAddPicker() {
+      const vv = window.visualViewport;
+      if (!vv || !addPicker.classList.contains('show')) return;
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      addPicker.style.setProperty('--kb', `${kb}px`);
+      addPicker.classList.toggle('typing', kb > 80);
+      const active = document.activeElement;
+      if (kb > 80 && active && addPicker.contains(active) && active.tagName === 'INPUT') {
+        active.scrollIntoView({ block: 'nearest' });
+      }
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', liftAddPicker);
+      window.visualViewport.addEventListener('scroll', liftAddPicker);
+    }
+
+    // Hide what has nothing to act on yet. The empty start screen shows the
+    // picker instead of the toolbar and log; Reset and the log stay while
+    // log entries exist (Reset is how to wipe them). Called on every render.
+    function syncEmptyState() {
+      const addBtn = $('#add-med');
+      const resetBtn = $('#reset-all');
+      addBtn.hidden = !state.drugs.length;
+      resetBtn.hidden = !state.drugs.length && !state.entries.length;
+      addBtn.closest('.toolbar').hidden = addBtn.hidden && resetBtn.hidden;
+      $('section.log').hidden = resetBtn.hidden;
+      // Share and Clear have nothing to act on until the first dose
+      $('#share-log').hidden = !state.entries.length;
+      $('#clear-log').hidden = !state.entries.length;
+    }
+
     function render() {
       renderDrugs(); renderLog(); updateLastDoseLabels(); syncEditingClass();
       // Redrawing replaces the input the pad was typing into — put it away
@@ -2424,12 +2758,19 @@
     function renderDrugs() {
       grid.innerHTML = '';
 
-      // Friendly empty state when there are no drugs yet
+      syncEmptyState();
+
+      // No cards yet: the picker itself is the start screen
       if (!state.drugs.length) {
-        const empty = document.createElement('div');
-        empty.className = 'grid-empty';
-        empty.innerHTML = 'Nothing tracked yet.<br>Tap <strong>+ Add substance</strong> to create your first card.';
-        grid.appendChild(empty);
+        const box = document.createElement('div');
+        box.className = 'start-picker';
+        const h = document.createElement('h2');
+        h.textContent = 'What are you taking?';
+        const sub = document.createElement('p');
+        sub.className = 'picker-sub';
+        sub.textContent = 'Tap one to start logging, or type your own below.';
+        box.append(h, sub, buildPresetPicker({ onPreset: pickPreset, onCustom: addCustomCard }).el);
+        grid.appendChild(box);
         return;
       }
 
@@ -2525,14 +2866,7 @@
               saveState();
               render();
               // Flow straight into dose entry.
-              if (drug.expanded) {
-                const numEl = document.querySelector(`[data-id="${drug.id}"] .dose-grid input`);
-                if (numEl) {
-                  if (p.unit === 'line') numEl.value = '1';
-                  numEl.focus();
-                  if (p.unit === 'line') numEl.select();
-                }
-              }
+              if (drug.expanded) focusDose(drug);
             });
             presetRow.appendChild(chip);
           }
@@ -2547,6 +2881,16 @@
           showPresets();
           nameInput.focus();
           nameInput.select();
+          // "Add another" from the picker: keep the base name ("Ketamine ")
+          // with the cursor after it, so only the initial needs typing.
+          if (titlePrefill && titlePrefill.id === drug.id) {
+            nameInput.value = titlePrefill.text;
+            nameInput.dataset.prefill = titlePrefill.text;
+            titlePrefill = null;
+            const end = nameInput.value.length;
+            nameInput.setSelectionRange(end, end);
+            sizeTitle();
+          }
         };
         const renameBtn = iconBtn('icon-btn title-edit-btn', 'Rename', `Rename ${drug.name}`, ICONS.pencil);
         renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startTitleEdit(); });
@@ -2899,24 +3243,7 @@
           if (dup) { nameInput.classList.add('invalid'); nameErr.style.display = 'block'; }
           else { nameInput.classList.remove('invalid'); nameErr.style.display = 'none'; }
 
-          // Smart Unit Detection
-          const low = proposed.toLowerCase();
-          let autoUnit = null;
-
-          // "Start with" logic
-          const linePrefixes = ["amph", "speed", "k ", "ket", "cocaine", "coke", "meph", "3m", "4m"];
-          if (linePrefixes.some(p => low.startsWith(p.toLowerCase()))) {
-            autoUnit = 'line';
-          } else if (low.includes('lsd')) {
-            autoUnit = 'µg';
-          } else if (low.includes('shroom')) {
-            autoUnit = 'g';
-          }
-
-          // A recognized pre-set name knows its unit best
-          const typedPreset = findPresetLoose(proposed);
-          if (typedPreset) autoUnit = typedPreset.unit;
-
+          const autoUnit = guessUnit(proposed);
           if (autoUnit) {
             unitSelect.value = autoUnit;
           }
@@ -2929,10 +3256,13 @@
           const prev = nameInput.dataset.prev || drug.name;
           const isEmpty = proposed.length === 0;
           const dup = state.drugs.some(d => d.id !== drug.id && nameKey(d.name) === nameKey(proposed));
+          // "Add another" left as just "Ketamine": keep "Ketamine 2", no error
+          const untouched = nameKey(proposed) === nameKey(nameInput.dataset.prefill);
+          delete nameInput.dataset.prefill;
           if (isEmpty || dup) {
             nameInput.value = prev;
             nameInput.classList.remove('invalid');
-            nameErr.style.display = dup ? 'block' : 'none';
+            nameErr.style.display = dup && !untouched ? 'block' : 'none';
             setTimeout(() => { nameErr.style.display = 'none'; }, 2000);
             return;
           }
@@ -3395,30 +3725,7 @@
         if (state.entries.length) clearLogWithUndo('Log cleared.');
       }
 
-      if (e.target && e.target.id === 'add-med') {
-        // Plain "New substance"; only add a number if that one's taken.
-        const base = DEFAULT_NAME; const names = new Set(state.drugs.map(d => nameKey(d.name)));
-        let candidate = base; let i = 1;
-        while (names.has(nameKey(candidate))) { i++; candidate = `${base} ${i}`; }
-        const color = palette[state.drugs.length % palette.length];
-        const newId = uid('drug');
-        state.drugs.push({ id: newId, name: candidate, color, expanded: true });
-        saveState();
-        render();
-
-        // Start renaming inside the tap so phones open the keyboard.
-        const card = document.querySelector(`[data-id="${newId}"]`);
-        const newNameInput = card ? card.querySelector('.drug-title') : null;
-        const pencil = card ? card.querySelector('.title-edit-btn') : null;
-        if (pencil) {
-          pencil.click();
-
-          // Scrolling can wait until the keyboard starts sliding up
-          setTimeout(() => {
-            if (newNameInput) newNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 60);
-        }
-      }
+      if (e.target && e.target.id === 'add-med') openAddPicker();
 
       const actionBtn = e.target.closest('[data-action]');
       if (actionBtn) {
