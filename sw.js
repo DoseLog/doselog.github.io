@@ -5,7 +5,7 @@
    changing it creates a fresh cache and removes older app caches.
    ============================================================================= */
 
-const CACHE_VERSION = '2026-09-29f';
+const CACHE_VERSION = '2026-10-01a';
 const CACHE_NAME = `med-tracker-${CACHE_VERSION}`;
 
 // Files the app cannot run without.

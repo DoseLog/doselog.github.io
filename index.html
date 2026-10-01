@@ -399,8 +399,7 @@
       box-shadow: var(--shadow-soft);
       padding: 18px 16px 16px;
     }
-    .start-picker h2 { margin: 0 0 3px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
-    .start-picker .picker-sub { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+    .start-picker h2 { margin: 0 0 14px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
     /* Very narrow phones: a little more room inside the tiles */
     @media (max-width: 359px) {
       .start-picker { padding: 16px 12px 12px; }
@@ -2766,10 +2765,7 @@
         box.className = 'start-picker';
         const h = document.createElement('h2');
         h.textContent = 'What are you taking?';
-        const sub = document.createElement('p');
-        sub.className = 'picker-sub';
-        sub.textContent = 'Tap one to start logging, or type your own below.';
-        box.append(h, sub, buildPresetPicker({ onPreset: pickPreset, onCustom: addCustomCard }).el);
+        box.append(h, buildPresetPicker({ onPreset: pickPreset, onCustom: addCustomCard }).el);
         grid.appendChild(box);
         return;
       }
