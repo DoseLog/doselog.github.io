@@ -1317,10 +1317,9 @@
   <div id="fresh-start" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fresh-title" style="display:none;">
     <div class="modal" role="document">
       <h4 id="fresh-title">Welcome back</h4>
-      <p id="fresh-msg">Keep everything, start a new log with your substances, or reset everything.</p>
+      <p id="fresh-msg">Keep everything or reset everything.</p>
       <div class="actions stacked-actions">
         <button class="btn btn-ghost" id="fresh-keep">Keep everything</button>
-        <button class="btn" id="fresh-new-log">Start a new log, keep my substances</button>
         <button class="btn btn-danger" id="fresh-clear">Reset everything</button>
       </div>
     </div>
@@ -3813,10 +3812,6 @@
       const modal = setupModal($('#fresh-start'));
       const keepBtn = $('#fresh-keep');
       keepBtn.addEventListener('click', modal.close);
-      $('#fresh-new-log').addEventListener('click', () => {
-        modal.close();
-        clearLogWithUndo('New log started. Substances kept.');
-      });
       $('#fresh-clear').addEventListener('click', () => {
         modal.close();
         resetEverything();
@@ -3838,7 +3833,7 @@
         if ($$('.modal-overlay.show').length) return;
         offeredFor = newest;
         $('#fresh-msg').textContent =
-          `Your log has entries from a previous night (last dose ${formatSinceLabel(newest)}). Keep everything, start a new log with your substances, or reset everything.`;
+          `Your log has entries from a previous night (last dose ${formatSinceLabel(newest)}). Keep everything or reset everything.`;
         modal.open(keepBtn);
       };
     })();
