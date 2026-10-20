@@ -661,19 +661,51 @@
     .controls { display: flex; gap: 8px; }
     .controls button { padding: 8px 12px; font-size: 12.5px; min-height: 36px; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: auto; }
-    thead th {
-      text-align: left; padding: 10px 14px;
-      color: var(--faint); font-weight: 600; font-size: 12px;
-      text-transform: uppercase; letter-spacing: 0.06em;
-      border-bottom: 1px solid var(--border); white-space: nowrap;
+    /* Two lines per entry: substance | amount over "time · how long ago" |
+       edit and remove. Columns line up across rows (subgrid) but nothing
+       has a fixed width, so the list always fits the screen. */
+    .log-list {
+      /* Room for the longest preset name ("Mephedrone"); longer ones get "…" */
+      --chip-col: 120px;
+      list-style: none; margin: 0; padding: 0; font-size: 14px;
+      display: grid; grid-template-columns: fit-content(var(--chip-col)) minmax(0, 1fr) auto;
+      column-gap: 14px;
     }
-    tbody td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    tbody tr:last-child td { border-bottom: none; }
-    .empty-row td { text-align: center; color: var(--muted); padding: 28px 18px; line-height: 1.6; }
+    .log-entry {
+      grid-column: 1 / -1;
+      display: grid; grid-template-columns: fit-content(var(--chip-col)) minmax(0, 1fr) auto;
+      grid-template-columns: subgrid;
+      column-gap: 14px; align-items: center;
+      padding: 12px 14px; border-bottom: 1px solid var(--border);
+    }
+    .log-entry:last-child { border-bottom: none; }
+    /* Long names shorten with "…" instead of squeezing the amount column */
+    .log-entry > .drug-chip { min-width: 0; justify-self: start; }
+    .log-empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 28px 18px; line-height: 1.6; }
+    .entry-main { min-width: 0; }
+    .entry-amount { font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+    .entry-when { margin-top: 2px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .entry-time, .entry-ago { white-space: nowrap; }
+    /* Smallest phones: "1 h 35 min ago" may break too */
+    @media (max-width: 359px) {
+      .log-list { --chip-col: 96px; }
+      .entry-time, .entry-ago { white-space: normal; }
+    }
+    .entry-editing-label { color: var(--muted); font-size: 13px; }
 
-    td.dose-cell { font-variant-numeric: tabular-nums; font-weight: 600; }
-    td.time-cell { color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Editing opens the entry downward over the full width */
+    .entry-edit { grid-column: 1 / -1; display: grid; gap: 10px; margin-top: 12px; }
+    .edit-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; }
+    /* Slimmer boxes than the main form, sized to what they hold */
+    .entry-edit .edit-fields > * { flex: 0 0 auto; }
+    .entry-edit .edit-fields > input, .entry-edit .edit-fields > select { padding-left: 10px; padding-right: 10px; }
+    .entry-edit .edit-fields > select { width: auto; padding-right: 28px; background-position: right 10px center; }
+    .entry-edit .edit-fields > .edit-amount { width: 4.25em; }
+    .entry-edit .edit-fields > input[type="time"] { width: auto; min-width: 5.5em; }
+    .entry-edit .edit-fields > .edit-date { width: auto; min-width: 9em; margin-top: 0; }
+    .entry-edit .edit-fields > .date-link { margin: 0; }
+    .edit-buttons { display: flex; gap: 10px; }
+    .edit-buttons .btn { flex: 1 1 0; }
 
     .row-actions { white-space: nowrap; text-align: right; }
     /* Air between edit and delete, for unsteady thumbs */
@@ -708,10 +740,6 @@
     }
 
     .edit-input { width: 100%; min-width: 0; }
-
-    /* Edit amount + unit layout; unit keeps its natural width. */
-    .edit-amount-grid { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; }
-    .edit-amount-grid select { width: auto; }
 
     /* Keep iOS autofill readable in the dark theme. */
     input:-webkit-autofill,
@@ -1085,19 +1113,9 @@
       .toolbar button { padding: 0 13px; font-size: 13.5px; }
       .log-header { padding: 12px; }
       .log { overflow-x: hidden; }
-
-      thead th { white-space: normal; padding: 8px; }
-      tbody td { padding: 10px 8px; }
-      thead th:nth-child(4), tbody td:nth-child(4) { text-align: right; }
-      tbody td:nth-child(2) { white-space: normal; overflow-wrap: anywhere; }
-      tbody td:nth-child(1) .drug-chip { display: inline-flex; max-width: 100%; }
-
-      /* On narrow screens, stack the amount field above the unit picker so
-         each gets the full width and typed numbers are always visible */
-      .edit-amount-grid { grid-template-columns: 1fr; }
-
-      /* While editing a row, allow sideways scroll */
-      body.editing .log { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .log-list, .log-entry { column-gap: 10px; }
+      .log-entry { padding: 12px 8px 12px 12px; }
+      .log-entry .row-actions .icon-btn + .icon-btn { margin-left: 4px; }
     }
 
     /* Users who prefer less motion get (almost) none */
@@ -1186,19 +1204,9 @@
           <button id="share-log" title="Send your current log as an image">Share with a friend</button>
         </div>
       </div>
-      <table aria-label="Dose log">
-        <thead>
-          <tr>
-            <th scope="col">Substance</th>
-            <th scope="col">Amount</th>
-            <th scope="col">Time</th>
-            <th scope="col" aria-label="Actions"></th>
-          </tr>
-        </thead>
-        <tbody id="log-body">
-          <tr class="empty-row"><td colspan="4">No doses logged yet.</td></tr>
-        </tbody>
-      </table>
+      <ul id="log-body" class="log-list" aria-label="Dose log">
+        <li class="log-empty">No doses logged yet.</li>
+      </ul>
     </section>
 
     <!-- Quiet footer for secondary information. -->
@@ -2777,7 +2785,19 @@
     }
 
     function render() {
-      renderDrugs(); renderLog(); updateLastDoseLabels(); syncEditingClass();
+      keepScroll(() => { renderDrugs(); renderLog(); updateLastDoseLabels(); });
+    }
+
+    // Opening or closing an entry's editor only touches the log
+    function renderLogOnly() { keepScroll(renderLog); }
+
+    // A redraw must never move the page (tapping ✎ or ✕ further down used
+    // to jump on iPhones), so the scroll position is put back afterwards.
+    function keepScroll(redraw) {
+      const y = window.scrollY;
+      redraw();
+      syncEditingClass();
+      if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
       // Redrawing replaces the input the pad was typing into — put it away
       if (padTarget && !document.body.contains(padTarget)) closeNumpad();
     }
@@ -2806,6 +2826,9 @@
         return lastB - lastA; // Recent first
       });
 
+      // Titles are measured after every card is in: measuring mid-rebuild,
+      // while the page is briefly short, makes Safari lose the scroll spot.
+      const titleSizers = [];
       sortedDrugs.forEach((drug) => {
         const card = document.createElement('div');
         card.className = `card ${drug.expanded ? '' : 'collapsed'}`;
@@ -3352,8 +3375,9 @@
         collapseWrap.appendChild(bodyDiv);
         card.appendChild(collapseWrap);
         grid.appendChild(card);
-        sizeTitle(); // needs the card in the page to measure the text
+        titleSizers.push(sizeTitle); // needs the card in the page to measure the text
       });
+      for (const size of titleSizers) size();
     }
 
     // Closing a colour menu, however it happens, un-flags its dot button.
@@ -3384,150 +3408,168 @@
       const entries = [...state.entries].sort((a,b) => b.ts - a.ts);
       logBody.innerHTML = '';
       if (!entries.length) {
-        logBody.innerHTML = '<tr class="empty-row"><td colspan="4">No doses logged yet — add one above to get started.</td></tr>';
+        logBody.innerHTML = '<li class="log-empty">No doses logged yet — add one above to get started.</li>';
         return;
       }
 
       const todayKey = dayKey(new Date());
-      {
-        for (const e of entries) {
-          const tr = document.createElement('tr');
-          tr.dataset.entryId = e.id;
+      for (const e of entries) {
+        const li = document.createElement('li');
+        li.className = 'log-entry';
+        li.dataset.entryId = e.id;
 
-          const tdDrug = document.createElement('td');
-          const chip = document.createElement('span');
-          chip.className = 'drug-chip';
-          const bg = colorForEntry(e) || '#56c1ab';
-          const chipBlend = blendForEntry(e);
-          if (chipBlend) {
-            // Faded copy of the card strip's gradient; the border-box layer
-            // gives the ring the same sweep without breaking the pill radius.
-            const wash = chipBlend.colors.map(c => hexToRgba(c, 0.18)).join(', ');
-            const ring = chipBlend.colors.map(c => hexToRgba(c, 0.48)).join(', ');
-            chip.style.background =
-              `linear-gradient(90deg, ${wash}) padding-box, linear-gradient(90deg, ${ring}) border-box`;
-            chip.style.borderColor = 'transparent';
-          } else {
-            chip.style.background = hexToRgba(bg, 0.16);
-            chip.style.borderColor = hexToRgba(bg, 0.38);
-          }
-          const nameSpan = document.createElement('span');
-          nameSpan.textContent = lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug';
-          chip.appendChild(nameSpan);
-          tdDrug.appendChild(chip);
-
-          const tdDose = document.createElement('td');
-          tdDose.className = 'dose-cell';
-          const tdTimeCell = document.createElement('td');
-          tdTimeCell.className = 'time-cell';
-
-          if (editingId === e.id) {
-            const amountInput = document.createElement('input');
-            // type=text so both "1.5" and "1,5" work in every locale
-            amountInput.type = 'text';
-            amountInput.className = 'edit-input';
-            amountInput.id = `edit-num-${e.id}`;
-            amountInput.value = (e.value != null && isFinite(e.value)) ? e.value : '';
-            useNumpad(amountInput, 'Save', () => saveEdit(e.id));
-
-            const unitSelect = makeUnitSelect(e.unitRaw || e.unit || 'mg');
-            unitSelect.id = `edit-unit-${e.id}`;
-
-            const dtInput = document.createElement('input');
-            dtInput.type = 'time';
-            dtInput.id = `edit-time-${e.id}`;
-            dtInput.className = 'edit-input';
-            dtInput.value = formatAsTime(e.ts);
-            dtInput.setAttribute('enterkeyhint', 'done');
-
-            // Doses just before midnight can need yesterday's date, so a
-            // tiny link swaps into a date field. Entries already from
-            // another day show the date field right away.
-            const dateInput = document.createElement('input');
-            dateInput.type = 'date';
-            dateInput.id = `edit-date-${e.id}`;
-            dateInput.className = 'edit-input edit-date';
-            dateInput.value = dayKey(e.ts);
-            dateInput.setAttribute('aria-label', 'Date taken');
-
-            const dateLink = document.createElement('button');
-            dateLink.type = 'button';
-            dateLink.className = 'link-btn date-link';
-            dateLink.textContent = 'Change date';
-            dateLink.addEventListener('click', () => {
-              dateLink.hidden = true;
-              dateInput.hidden = false;
-              try { dateInput.showPicker?.(); } catch { /* focus is enough */ }
-            });
-            if (dayKey(e.ts) === todayKey) dateInput.hidden = true;
-            else dateLink.hidden = true;
-
-            const enterSave = (ev) => {
-                if (ev.key === 'Enter' || ev.keyCode === 13) {
-                    ev.preventDefault();
-                    saveEdit(e.id);
-                }
-            };
-            amountInput.addEventListener('keydown', enterSave);
-            unitSelect.addEventListener('keydown', enterSave);
-            dtInput.addEventListener('keydown', enterSave);
-            dateInput.addEventListener('keydown', enterSave);
-
-            const amtWrap = document.createElement('div');
-            amtWrap.className = 'edit-amount-grid';
-            amtWrap.appendChild(amountInput);
-            amtWrap.appendChild(unitSelect);
-            tdDose.appendChild(amtWrap);
-            tdTimeCell.appendChild(dtInput);
-            tdTimeCell.appendChild(dateLink);
-            tdTimeCell.appendChild(dateInput);
-          } else {
-            tdDose.textContent = e.dosageText;
-            // Older entries (kept past a night) get their date so times
-            // can't be mistaken for tonight's
-            tdTimeCell.textContent = (dayKey(e.ts) === todayKey)
-              ? timeStr(e.ts)
-              : `${dateLabel(e.ts)}, ${timeStr(e.ts)}`;
-          }
-
-          const tdActions = document.createElement('td');
-          tdActions.className = 'row-actions';
-
-          if (editingId === e.id) {
-            const saveBtn = iconBtn('icon-btn', 'Save', 'Save', ICONS.check);
-            saveBtn.addEventListener('touchstart', (ev) => { ev.preventDefault(); saveEdit(e.id); });
-            saveBtn.addEventListener('click', () => saveEdit(e.id));
-
-            const cancelBtn = iconBtn('icon-btn', 'Cancel', 'Cancel', ICONS.x);
-            cancelBtn.addEventListener('click', cancelEdit);
-
-            tdActions.appendChild(saveBtn);
-            tdActions.appendChild(cancelBtn);
-          } else {
-            const editBtn = iconBtn('icon-btn', 'Edit', 'Edit entry', ICONS.pencil);
-            editBtn.dataset.action = 'edit-entry';
-            editBtn.dataset.entryId = e.id;
-
-            const delBtn = iconBtn('icon-btn icon-danger', 'Remove this entry', 'Remove entry', ICONS.x);
-            delBtn.dataset.action = 'remove-entry';
-            delBtn.dataset.entryId = e.id;
-
-            tdActions.appendChild(editBtn);
-            tdActions.appendChild(delBtn);
-          }
-
-          tr.appendChild(tdDrug);
-          tr.appendChild(tdDose);
-          tr.appendChild(tdTimeCell);
-          tr.appendChild(tdActions);
-          logBody.appendChild(tr);
+        const chip = document.createElement('span');
+        chip.className = 'drug-chip';
+        const bg = colorForEntry(e) || '#56c1ab';
+        const chipBlend = blendForEntry(e);
+        if (chipBlend) {
+          // Faded copy of the card strip's gradient; the border-box layer
+          // gives the ring the same sweep without breaking the pill radius.
+          const wash = chipBlend.colors.map(c => hexToRgba(c, 0.18)).join(', ');
+          const ring = chipBlend.colors.map(c => hexToRgba(c, 0.48)).join(', ');
+          chip.style.background =
+            `linear-gradient(90deg, ${wash}) padding-box, linear-gradient(90deg, ${ring}) border-box`;
+          chip.style.borderColor = 'transparent';
+        } else {
+          chip.style.background = hexToRgba(bg, 0.16);
+          chip.style.borderColor = hexToRgba(bg, 0.38);
         }
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = lookupDrugName(e.drugId) || e.drugNameAtEntry || 'Drug';
+        chip.appendChild(nameSpan);
+        li.appendChild(chip);
+
+        if (editingId === e.id) {
+          li.classList.add('editing');
+          const label = document.createElement('span');
+          label.className = 'entry-editing-label';
+          label.textContent = 'Editing';
+          li.appendChild(label);
+          li.appendChild(buildEntryEditor(e, todayKey));
+        } else {
+          // Amount on top; clock time and how long ago underneath
+          const main = document.createElement('div');
+          main.className = 'entry-main';
+          const amount = document.createElement('div');
+          amount.className = 'entry-amount';
+          amount.textContent = e.dosageText;
+          const when = document.createElement('div');
+          when.className = 'entry-when';
+          // Older entries (kept past a night) get their date so times
+          // can't be mistaken for tonight's
+          const time = document.createElement('span');
+          time.className = 'entry-time'; // a too-narrow line wraps after the "·"
+          time.textContent = ((dayKey(e.ts) === todayKey)
+            ? timeStr(e.ts)
+            : `${dateLabel(e.ts)}, ${timeStr(e.ts)}`) + ' ·';
+          when.append(time, ' ');
+          const ago = document.createElement('span');
+          ago.className = 'entry-ago';
+          ago.dataset.ts = String(+e.ts);
+          ago.textContent = formatSinceLabel(e.ts);
+          when.appendChild(ago);
+          main.append(amount, when);
+
+          const actions = document.createElement('div');
+          actions.className = 'row-actions';
+          const editBtn = iconBtn('icon-btn', 'Edit', 'Edit entry', ICONS.pencil);
+          editBtn.dataset.action = 'edit-entry';
+          editBtn.dataset.entryId = e.id;
+          const delBtn = iconBtn('icon-btn icon-danger', 'Remove this entry', 'Remove entry', ICONS.x);
+          delBtn.dataset.action = 'remove-entry';
+          delBtn.dataset.entryId = e.id;
+          actions.append(editBtn, delBtn);
+
+          li.append(main, actions);
+        }
+        logBody.appendChild(li);
       }
 
       state.drugs.forEach(d => {
         const totalEl = document.getElementById(`meta-total-${d.id}`);
         if (totalEl) totalEl.textContent = totalsForDrugLabel(d.id);
       });
+    }
+
+    // Full-width edit area under the entry: amount + unit, time (and date
+    // on request), then Save / Cancel.
+    function buildEntryEditor(e, todayKey) {
+      const box = document.createElement('div');
+      box.className = 'entry-edit';
+
+      const amountInput = document.createElement('input');
+      // type=text so both "1.5" and "1,5" work in every locale
+      amountInput.type = 'text';
+      amountInput.className = 'edit-input edit-amount';
+      amountInput.id = `edit-num-${e.id}`;
+      amountInput.setAttribute('aria-label', 'Amount');
+      amountInput.value = (e.value != null && isFinite(e.value)) ? e.value : '';
+      useNumpad(amountInput, 'Save', () => saveEdit(e.id));
+
+      const unitSelect = makeUnitSelect(e.unitRaw || e.unit || 'mg');
+      unitSelect.id = `edit-unit-${e.id}`;
+
+      const dtInput = document.createElement('input');
+      dtInput.type = 'time';
+      dtInput.id = `edit-time-${e.id}`;
+      dtInput.className = 'edit-input';
+      dtInput.setAttribute('aria-label', 'Time taken');
+      dtInput.value = formatAsTime(e.ts);
+      dtInput.setAttribute('enterkeyhint', 'done');
+
+      // Doses just before midnight can need yesterday's date, so a
+      // tiny link swaps into a date field. Entries already from
+      // another day show the date field right away.
+      const dateInput = document.createElement('input');
+      dateInput.type = 'date';
+      dateInput.id = `edit-date-${e.id}`;
+      dateInput.className = 'edit-input edit-date';
+      dateInput.value = dayKey(e.ts);
+      dateInput.setAttribute('aria-label', 'Date taken');
+
+      const dateLink = document.createElement('button');
+      dateLink.type = 'button';
+      dateLink.className = 'link-btn date-link';
+      dateLink.textContent = 'Change date';
+      dateLink.addEventListener('click', () => {
+        dateLink.hidden = true;
+        dateInput.hidden = false;
+        try { dateInput.showPicker?.(); } catch { /* focus is enough */ }
+      });
+      if (dayKey(e.ts) === todayKey) dateInput.hidden = true;
+      else dateLink.hidden = true;
+
+      const enterSave = (ev) => {
+        if (ev.key === 'Enter' || ev.keyCode === 13) {
+          ev.preventDefault();
+          saveEdit(e.id);
+        }
+      };
+      for (const el of [amountInput, unitSelect, dtInput, dateInput]) el.addEventListener('keydown', enterSave);
+
+      // Amount, unit, time and "Change date" share one row (wrapping only
+      // on very narrow screens or once the date field is opened)
+      const fields = document.createElement('div');
+      fields.className = 'edit-fields';
+      fields.append(amountInput, unitSelect, dtInput, dateLink, dateInput);
+
+      const buttons = document.createElement('div');
+      buttons.className = 'edit-buttons';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'btn add-btn';
+      saveBtn.textContent = 'Save';
+      saveBtn.addEventListener('touchstart', (ev) => { ev.preventDefault(); saveEdit(e.id); });
+      saveBtn.addEventListener('click', () => saveEdit(e.id));
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn btn-ghost';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', cancelEdit);
+      buttons.append(saveBtn, cancelBtn);
+
+      box.append(fields, buttons);
+      return box;
     }
 
     function lookupDrugName(id) { return state.drugs.find(d => d.id === id)?.name || null; }
@@ -3590,6 +3632,10 @@
         }
         fitLastDoseLabel(el);
       });
+      // Log rows: the "how long ago" half of each time line
+      for (const el of logBody.querySelectorAll('.entry-ago')) {
+        el.textContent = formatSinceLabel(new Date(Number(el.dataset.ts)));
+      }
     }
 
     // Shrink the big "since last dose" number just enough that the row with
@@ -3670,7 +3716,16 @@
     }
 
     // Do not open the number pad until the amount field is tapped.
-    function startEdit(entryId) { editingId = entryId; render(); }
+    function startEdit(entryId) {
+      editingId = entryId;
+      renderLogOnly();
+      // Near the bottom of the screen, bring the opened editor fully into view
+      const row = logBody.querySelector('.log-entry.editing');
+      if (row) {
+        const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        row.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+      }
+    }
 
     function saveEdit(entryId) {
       const amountEl = document.getElementById(`edit-num-${entryId}`);
@@ -3723,7 +3778,7 @@
       render();
     }
 
-    function cancelEdit() { editingId = null; render(); }
+    function cancelEdit() { editingId = null; renderLogOnly(); }
 
     let editingId = null;
     function syncEditingClass() { document.body.classList.toggle('editing', !!editingId); }
