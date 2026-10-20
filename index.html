@@ -381,13 +381,14 @@
     }
     .preset-tile.taken .tile-tick { display: block; }
     .preset-tile .tile-tick svg { width: 13px; height: 13px; }
-    .preset-tile[hidden] { display: none; }
+    /* No match for what's typed: faded but kept in place, so nothing moves */
+    .preset-tile.dim { opacity: 0.28; }
     .picker-other { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 14px; }
     .picker-other input { width: 100%; }
     .picker-other button.add-btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
     .picker-error { color: var(--danger); font-size: 12.5px; margin: 6px 2px 0; }
     .picker-error[hidden] { display: none; }
-    .picker-none { margin: 2px 0 0; color: var(--faint); font-size: 13px; }
+    .picker-none { margin: 8px 2px 0; color: var(--faint); font-size: 13px; }
     .picker-none[hidden] { display: none; }
 
     /* Start screen: the picker sits right on the page as its own card. */
@@ -2582,11 +2583,37 @@
       numEl.setSelectionRange(end, end);
     }
 
+    // iPhones misplace taps while their keyboard is still sliding away, so
+    // the number pad waits until it's gone (instant when no keyboard is up).
+    function afterKeyboardCloses(fn) {
+      const vv = window.visualViewport;
+      const kbUp = () => vv && window.innerHeight - vv.height > 80;
+      if (!kbUp()) { fn(); return; }
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        vv.removeEventListener('resize', check);
+        clearTimeout(timer);
+        setTimeout(fn, 120); // let the page settle after the keyboard
+      };
+      const check = () => { if (!kbUp()) finish(); };
+      vv.addEventListener('resize', check);
+      const timer = setTimeout(finish, 700);
+    }
+
+    // Puts away the "Something else…" keyboard, then opens dose entry
+    function openDoseEntry(drug) {
+      const active = document.activeElement;
+      if (active && active.tagName === 'INPUT') active.blur();
+      afterKeyboardCloses(() => focusDose(drug));
+    }
+
     // A preset tile was tapped. If that preset already has a card, add a
     // second one ("Ketamine 2") and open its name so it can become
     // "Ketamine F" — names must stay unique.
     function pickPreset(p, taken) {
-      if (!taken) { focusDose(addCard(p.name, p, p.unit)); return; }
+      if (!taken) { openDoseEntry(addCard(p.name, p, p.unit)); return; }
       const names = new Set(state.drugs.map(d => nameKey(d.name)));
       let i = 2;
       while (names.has(nameKey(`${p.name} ${i}`))) i++;
@@ -2606,7 +2633,7 @@
     function addCustomCard(name) {
       const exact = findPreset(name);
       const preset = findPresetLoose(name);
-      focusDose(addCard(exact ? exact.name : name, preset, guessUnit(name)));
+      openDoseEntry(addCard(exact ? exact.name : name, preset, guessUnit(name)));
     }
 
     function buildPresetPicker({ onPreset, onCustom }) {
@@ -2647,7 +2674,7 @@
       const input = document.createElement('input');
       input.type = 'text';
       input.placeholder = 'Something else…';
-      input.setAttribute('aria-label', 'Other substance name');
+      input.setAttribute('aria-label', 'Other substance');
       input.setAttribute('autocomplete', 'off');
       input.setAttribute('autocorrect', 'off');
       input.setAttribute('autocapitalize', 'sentences');
@@ -2665,7 +2692,9 @@
       err.setAttribute('aria-live', 'polite');
       err.hidden = true;
 
-      // Typing narrows the tiles to matching presets, best match first
+      // Typing fades the tiles that don't match and moves the best match
+      // first. Tiles are never removed: the grid sits above the field, so
+      // shrinking it would make the field (and the screen) jump.
       input.addEventListener('input', () => {
         const typed = input.value.trim();
         addBtn.disabled = !typed;
@@ -2674,8 +2703,8 @@
           ? tileEls.map(t => ({ t, s: presetMatchScore(t.p, typed) }))
               .filter(x => x.s <= 2).sort((a, b) => a.s - b.s).map(x => x.t)
           : tileEls;
-        for (const t of tileEls) t.el.hidden = !shown.includes(t);
-        for (const t of shown) tiles.appendChild(t.el);
+        for (const t of tileEls) t.el.classList.toggle('dim', !shown.includes(t));
+        for (const t of [...shown, ...tileEls.filter(t => !shown.includes(t))]) tiles.appendChild(t.el);
         none.hidden = shown.length > 0;
       });
       const submit = () => {
@@ -2691,7 +2720,7 @@
       addBtn.addEventListener('click', submit);
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
 
-      wrap.append(tiles, none, other, err);
+      wrap.append(tiles, other, none, err);
       return { el: wrap, input };
     }
 
